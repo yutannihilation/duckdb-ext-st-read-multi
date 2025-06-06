@@ -3,56 +3,187 @@ extern crate duckdb_loadable_macros;
 extern crate libduckdb_sys;
 
 use duckdb::{
-    core::{DataChunkHandle, Inserter, LogicalTypeHandle, LogicalTypeId},
+    core::{DataChunkHandle, FlatVector, Inserter, LogicalTypeHandle, LogicalTypeId},
     vtab::{BindInfo, InitInfo, TableFunctionInfo, VTab},
     Connection, Result,
 };
 use duckdb_loadable_macros::duckdb_entrypoint_c_api;
+use geojson::FeatureCollection;
+use glob::glob;
 use libduckdb_sys as ffi;
 use std::{
     error::Error,
-    ffi::CString,
+    fs::File,
+    io::BufReader,
     sync::atomic::{AtomicBool, Ordering},
 };
 
+#[derive(Clone, Copy)]
 #[repr(C)]
-struct HelloBindData {
-    name: String,
+enum GeoJsonColumnType {
+    Boolean,
+    Varchar,
+    Double,
+}
+
+// TODO: NULL should be handled outside of this function
+impl TryFrom<&serde_json::Value> for GeoJsonColumnType {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: &serde_json::Value) -> std::result::Result<Self, Self::Error> {
+        match value {
+            serde_json::Value::Bool(_) => Ok(Self::Boolean),
+            serde_json::Value::Number(_number) => {
+                // TODO: detect integer or double
+                Ok(Self::Double)
+            }
+            serde_json::Value::String(_) => Ok(Self::Varchar),
+            _ => {
+                return Err(format!("Unsupported type: {value:?}").into());
+            }
+        }
+    }
+}
+
+impl From<GeoJsonColumnType> for LogicalTypeHandle {
+    fn from(value: GeoJsonColumnType) -> Self {
+        match value {
+            GeoJsonColumnType::Boolean => LogicalTypeId::Boolean.into(),
+            GeoJsonColumnType::Double => LogicalTypeId::Double.into(),
+            GeoJsonColumnType::Varchar => LogicalTypeId::Varchar.into(),
+        }
+    }
 }
 
 #[repr(C)]
-struct HelloInitData {
+struct StReadMultiBindData {
+    fc: Vec<FeatureCollection>,
+    column_names: Vec<String>,
+    column_types: Vec<GeoJsonColumnType>,
+}
+
+#[repr(C)]
+struct StReadMultiInitData {
     done: AtomicBool,
 }
 
-struct HelloVTab;
+struct StReadMultiVTab;
 
-impl VTab for HelloVTab {
-    type InitData = HelloInitData;
-    type BindData = HelloBindData;
+impl VTab for StReadMultiVTab {
+    type InitData = StReadMultiInitData;
+    type BindData = StReadMultiBindData;
 
     fn bind(bind: &BindInfo) -> Result<Self::BindData, Box<dyn std::error::Error>> {
-        bind.add_result_column("column0", LogicalTypeHandle::from(LogicalTypeId::Varchar));
-        let name = bind.get_parameter(0).to_string();
-        Ok(HelloBindData { name })
+        // geometry column must exist
+        bind.add_result_column("geometry", LogicalTypeId::Blob.into());
+
+        let path_pattern = bind.get_parameter(0).to_string();
+
+        let mut fc: Vec<FeatureCollection> = Vec::new();
+        let mut column_names: Option<Vec<String>> = None;
+        let mut column_types: Option<Vec<GeoJsonColumnType>> = None;
+
+        for entry in glob(&path_pattern)? {
+            let mut column_names_local: Vec<String> = Vec::new();
+            let mut column_types_local: Vec<GeoJsonColumnType> = Vec::new();
+
+            let path = entry?;
+            let f = File::open(&path)?;
+            match geojson::GeoJson::from_reader(BufReader::new(f))? {
+                geojson::GeoJson::FeatureCollection(feature_collection) => {
+                    for (key, val) in feature_collection.features[0].properties_iter() {
+                        column_names_local.push(key.to_string());
+                        let column_type = val.try_into()?;
+                        column_types_local.push(column_type);
+                        bind.add_result_column(key, column_type.into());
+                    }
+
+                    fc.push(feature_collection);
+                }
+                _ => {
+                    return Err(format!(
+                        "GeoJSON file must be FeatureCollection: {}",
+                        path.to_string_lossy()
+                    )
+                    .into());
+                }
+            }
+
+            if column_names.is_none() {
+                let _ = column_names.insert(column_names_local);
+            } else {
+                // TODO: verify if the schema matches
+            }
+
+            if column_types.is_none() {
+                let _ = column_types.insert(column_types_local);
+            } else {
+                // TODO: verify if the schema matches
+            }
+        }
+
+        Ok(StReadMultiBindData {
+            fc,
+            column_names: column_names.unwrap(),
+            column_types: column_types.unwrap(),
+        })
     }
 
     fn init(_: &InitInfo) -> Result<Self::InitData, Box<dyn std::error::Error>> {
-        Ok(HelloInitData {
+        Ok(StReadMultiInitData {
             done: AtomicBool::new(false),
         })
     }
 
-    fn func(func: &TableFunctionInfo<Self>, output: &mut DataChunkHandle) -> Result<(), Box<dyn std::error::Error>> {
+    fn func(
+        func: &TableFunctionInfo<Self>,
+        output: &mut DataChunkHandle,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let init_data = func.get_init_data();
         let bind_data = func.get_bind_data();
         if init_data.done.swap(true, Ordering::Relaxed) {
             output.set_len(0);
         } else {
-            let vector = output.flat_vector(0);
-            let result = CString::new(format!("Rusty Quack {} 🐥", bind_data.name))?;
-            vector.insert(0, result);
-            output.set_len(1);
+            let geom_vector = output.flat_vector(0);
+            let mut property_vectors: Vec<FlatVector> = (0..bind_data.column_types.len())
+                .map(|i| output.flat_vector(i + 1))
+                .collect();
+
+            let mut row_idx: usize = 0;
+            for fc in &bind_data.fc {
+                for f in &fc.features {
+                    let b = feature_to_wkb(f)?;
+                    let b_ref: &[u8] = b.as_ref();
+                    geom_vector.insert(row_idx, b_ref);
+
+                    if let Some(properties) = &f.properties {
+                        for (prop_idx, ty) in bind_data.column_types.iter().enumerate() {
+                            let key = &bind_data.column_names[prop_idx];
+                            let val = properties.get(key).unwrap();
+
+                            match ty {
+                                // Varchar needs insert()
+                                GeoJsonColumnType::Varchar => {
+                                    property_vectors[prop_idx]
+                                        .insert(row_idx, val.as_str().unwrap());
+                                }
+                                GeoJsonColumnType::Boolean => {
+                                    property_vectors[prop_idx].as_mut_slice()[row_idx] =
+                                        val.as_bool().unwrap();
+                                }
+                                GeoJsonColumnType::Double => {
+                                    property_vectors[prop_idx].as_mut_slice()[row_idx] =
+                                        val.as_f64().unwrap();
+                                }
+                            }
+                        }
+                    }
+
+                    row_idx += 1;
+                }
+            }
+
+            output.set_len(row_idx);
         }
         Ok(())
     }
@@ -62,11 +193,24 @@ impl VTab for HelloVTab {
     }
 }
 
+fn feature_to_wkb(feature: &geojson::Feature) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let mut buffer = Vec::new();
+    match &feature.geometry {
+        Some(geojson_geom) => {
+            let geometry: geo_types::Geometry = geojson_geom.try_into()?;
+            wkb::writer::write_geometry(&mut buffer, &geometry, &Default::default()).unwrap();
+        }
+        None => panic!("Geometry should exist!"),
+    }
+
+    Ok(buffer)
+}
+
 const EXTENSION_NAME: &str = env!("CARGO_PKG_NAME");
 
 #[duckdb_entrypoint_c_api()]
 pub unsafe fn extension_entrypoint(con: Connection) -> Result<(), Box<dyn Error>> {
-    con.register_table_function::<HelloVTab>(EXTENSION_NAME)
-        .expect("Failed to register hello table function");
+    con.register_table_function::<StReadMultiVTab>(EXTENSION_NAME)
+        .expect("Failed to register StReadMulti table function");
     Ok(())
 }
