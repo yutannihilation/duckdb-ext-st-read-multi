@@ -1,0 +1,20 @@
+# name: test/sql/st_read_multi.test
+# description: test st_read_multi extension
+# group: [quack]
+
+# Before we load the extension, this will fail
+statement error
+SELECT st_read_multi('Sam');
+----
+Catalog Error: Scalar Function with name st_read_multi does not exist!
+
+# Require statement will ensure the extension is loaded from now on
+require st_read_multi
+
+require icu
+
+# Confirm the extension works
+query I
+SELECT * from st_read_multi('Sam');
+----
+Rusty Quack Sam 🐥
