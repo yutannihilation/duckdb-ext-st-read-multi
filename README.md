@@ -8,7 +8,7 @@ This extension is to import multiple files e.g. `ST_Read_Multi('path/to/*.geojso
 ## Limitations
 
 - `ST_Read_Multi` supports only a few numbers of file formats compared to `ST_Read`.
-- `ST_Read_Multi` is very inefficient; this doesn't support pushdown, spatial index, etc.
+- `ST_Read_Multi` is highly inefficient compared to `ST_Read`; this eagerly reads all the data and doesn't support pushdown, spatial index, etc.
 
 ## Usages
 
