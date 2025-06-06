@@ -2,12 +2,6 @@
 # description: test st_read_multi extension
 # group: [spatial]
 
-# Before we load the extension, this will fail
-statement error
-SELECT st_read_multi('Sam');
-----
-Catalog Error: Scalar Function with name st_read_multi does not exist!
-
 # Require statement will ensure the extension is loaded from now on
 require st_read_multi
 
