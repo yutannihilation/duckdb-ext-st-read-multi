@@ -84,7 +84,8 @@ impl VTab for StReadMultiVTab {
         bind.add_result_column("geometry", LogicalTypeId::Blob.into());
 
         let path_pattern = bind.get_parameter(0).to_string();
-        let paths: Vec<PathBuf> = glob(&path_pattern)?.collect::<Result<_, _>>()?;
+        let expanded_pattern = expand_tilde(&path_pattern);
+        let paths: Vec<PathBuf> = glob(&expanded_pattern)?.collect::<Result<_, _>>()?;
 
         if paths.is_empty() {
             return Err("Doesn't match to any file".into());
@@ -105,31 +106,30 @@ impl VTab for StReadMultiVTab {
                 geojson::GeoJson::FeatureCollection(feature_collection) => {
                     // Use first 100 features to determine schema
                     let sample_size = std::cmp::min(100, feature_collection.features.len());
-                    let mut property_type_map: std::collections::HashMap<String, ColumnType> = std::collections::HashMap::new();
-                    
+                    let mut property_type_map: std::collections::HashMap<String, ColumnType> =
+                        std::collections::HashMap::new();
+
                     for i in 0..sample_size {
                         for (key, val) in feature_collection.features[i].properties_iter() {
                             // Skip NULL values
                             if val.is_null() {
                                 continue;
                             }
-                            
+
                             let column_type: ColumnType = val.try_into()?;
-                            
+
                             // If key doesn't exist yet or current type is more specific, update it
-                            property_type_map.entry(key.to_string())
+                            property_type_map
+                                .entry(key.to_string())
                                 .or_insert(column_type);
                         }
                     }
-                    
+
                     // Convert to ordered vector
                     for (name, column_type) in property_type_map {
-                        column_specs_local.push(ColumnSpec {
-                            name,
-                            column_type,
-                        });
+                        column_specs_local.push(ColumnSpec { name, column_type });
                     }
-                    
+
                     // Sort by name for consistent ordering
                     column_specs_local.sort_by(|a, b| a.name.cmp(&b.name));
 
@@ -269,6 +269,19 @@ impl VTab for StReadMultiVTab {
 
     fn parameters() -> Option<Vec<LogicalTypeHandle>> {
         Some(vec![LogicalTypeHandle::from(LogicalTypeId::Varchar)])
+    }
+}
+
+// glob() doesn't handle tilda, so I have to.
+fn expand_tilde(path: &str) -> String {
+    if path.starts_with('~') {
+        if let Some(home) = home::home_dir() {
+            path.replacen('~', &home.to_string_lossy(), 1)
+        } else {
+            path.to_string()
+        }
+    } else {
+        path.to_string()
     }
 }
 

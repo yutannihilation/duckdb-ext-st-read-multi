@@ -23,9 +23,7 @@ This extension is to import multiple files e.g. `ST_Read_Multi('path/to/*.geojso
 ### GeoJSON
 
 ```sql
-SELECT ST_GeomFromWkb(geometry),
-       val1,
-       val2
+SELECT * REPLACE ST_GeomFromWkb(geometry),
 FROM ST_Read_Multi('test/data/*.geojson');
 ```
 
