@@ -20,14 +20,14 @@ use std::{
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
-enum GeoJsonColumnType {
+enum ColumnType {
     Boolean,
     Varchar,
     Double,
 }
 
 // TODO: NULL should be handled outside of this function
-impl TryFrom<&serde_json::Value> for GeoJsonColumnType {
+impl TryFrom<&serde_json::Value> for ColumnType {
     type Error = Box<dyn std::error::Error>;
 
     fn try_from(value: &serde_json::Value) -> std::result::Result<Self, Self::Error> {
@@ -45,12 +45,12 @@ impl TryFrom<&serde_json::Value> for GeoJsonColumnType {
     }
 }
 
-impl From<GeoJsonColumnType> for LogicalTypeHandle {
-    fn from(value: GeoJsonColumnType) -> Self {
+impl From<ColumnType> for LogicalTypeHandle {
+    fn from(value: ColumnType) -> Self {
         match value {
-            GeoJsonColumnType::Boolean => LogicalTypeId::Boolean.into(),
-            GeoJsonColumnType::Double => LogicalTypeId::Double.into(),
-            GeoJsonColumnType::Varchar => LogicalTypeId::Varchar.into(),
+            ColumnType::Boolean => LogicalTypeId::Boolean.into(),
+            ColumnType::Double => LogicalTypeId::Double.into(),
+            ColumnType::Varchar => LogicalTypeId::Varchar.into(),
         }
     }
 }
@@ -58,7 +58,7 @@ impl From<GeoJsonColumnType> for LogicalTypeHandle {
 #[repr(C)]
 struct ColumnSpec {
     name: String,
-    column_type: GeoJsonColumnType,
+    column_type: ColumnType,
 }
 
 #[repr(C)]
@@ -162,15 +162,15 @@ impl VTab for StReadMultiVTab {
 
                             match spec.column_type {
                                 // Varchar needs insert()
-                                GeoJsonColumnType::Varchar => {
+                                ColumnType::Varchar => {
                                     property_vectors[prop_idx]
                                         .insert(row_idx, val.as_str().unwrap());
                                 }
-                                GeoJsonColumnType::Boolean => {
+                                ColumnType::Boolean => {
                                     property_vectors[prop_idx].as_mut_slice()[row_idx] =
                                         val.as_bool().unwrap();
                                 }
-                                GeoJsonColumnType::Double => {
+                                ColumnType::Double => {
                                     property_vectors[prop_idx].as_mut_slice()[row_idx] =
                                         val.as_f64().unwrap();
                                 }
