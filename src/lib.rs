@@ -18,7 +18,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 enum GeoJsonColumnType {
     Boolean,
@@ -95,7 +95,6 @@ impl VTab for StReadMultiVTab {
                         column_names_local.push(key.to_string());
                         let column_type = val.try_into()?;
                         column_types_local.push(column_type);
-                        bind.add_result_column(key, column_type.into());
                     }
 
                     fc.push(feature_collection);
@@ -122,10 +121,17 @@ impl VTab for StReadMultiVTab {
             }
         }
 
+        let column_names = column_names.unwrap();
+        let column_types = column_types.unwrap();
+
+        for (i, key) in column_names.iter().enumerate() {
+            bind.add_result_column(key, column_types[i].into());
+        }
+
         Ok(StReadMultiBindData {
             fc,
-            column_names: column_names.unwrap(),
-            column_types: column_types.unwrap(),
+            column_names,
+            column_types,
         })
     }
 

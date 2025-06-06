@@ -20,3 +20,5 @@ SELECT ST_GeomFromWkb(geometry), val1, val2 FROM ST_Read_Multi('test/data/*');
 ----
 POINT (1 2)	 1.0	a
 POINT (10 20)	 2.0	b
+POINT (100 200)	5.0	c
+POINT (111 222)	6.0	d
