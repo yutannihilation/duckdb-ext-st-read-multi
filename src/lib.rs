@@ -139,7 +139,7 @@ impl VTab for StReadMultiVTab {
                         .into());
                     }
 
-                    if &existing.column_type != &local.column_type {
+                    if existing.column_type != local.column_type {
                         return Err(format!(
                             "Schema mismatch in {}: column '{}' has type {:?}, expected {:?}",
                             path.to_string_lossy().replace('\\', "/"),

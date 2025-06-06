@@ -24,7 +24,7 @@ impl TryFrom<&serde_json::Value> for ColumnType {
             }
             serde_json::Value::String(_) => Ok(Self::Varchar),
             _ => {
-                return Err(format!("Unsupported type: {value:?}").into());
+                Err(format!("Unsupported type: {value:?}").into())
             }
         }
     }
