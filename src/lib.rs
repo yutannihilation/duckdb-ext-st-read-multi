@@ -2,82 +2,29 @@ extern crate duckdb;
 extern crate duckdb_loadable_macros;
 extern crate libduckdb_sys;
 
+mod types;
+mod utils;
+mod wkb;
+
 use duckdb::{
     core::{DataChunkHandle, FlatVector, Inserter, LogicalTypeHandle, LogicalTypeId},
     vtab::{BindInfo, InitInfo, TableFunctionInfo, VTab},
     Connection, Result,
 };
 use duckdb_loadable_macros::duckdb_entrypoint_c_api;
-use geojson::FeatureCollection;
 use glob::glob;
 use libduckdb_sys as ffi;
 use std::{
     error::Error,
     fs::File,
     io::BufReader,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::atomic::{AtomicBool, Ordering},
 };
+use types::*;
+use utils::*;
+use wkb::WkbConverter;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[repr(C)]
-enum ColumnType {
-    Boolean,
-    Varchar,
-    Double,
-}
-
-// TODO: NULL should be handled outside of this function
-impl TryFrom<&serde_json::Value> for ColumnType {
-    type Error = Box<dyn std::error::Error>;
-
-    fn try_from(value: &serde_json::Value) -> std::result::Result<Self, Self::Error> {
-        match value {
-            serde_json::Value::Bool(_) => Ok(Self::Boolean),
-            serde_json::Value::Number(_number) => {
-                // TODO: detect integer or double
-                Ok(Self::Double)
-            }
-            serde_json::Value::String(_) => Ok(Self::Varchar),
-            _ => {
-                return Err(format!("Unsupported type: {value:?}").into());
-            }
-        }
-    }
-}
-
-impl From<ColumnType> for LogicalTypeHandle {
-    fn from(value: ColumnType) -> Self {
-        match value {
-            ColumnType::Boolean => LogicalTypeId::Boolean.into(),
-            ColumnType::Double => LogicalTypeId::Double.into(),
-            ColumnType::Varchar => LogicalTypeId::Varchar.into(),
-        }
-    }
-}
-
-#[repr(C)]
-struct ColumnSpec {
-    name: String,
-    column_type: ColumnType,
-}
-
-#[repr(C)]
-struct FeatureCollectionWithSource {
-    feature_collection: FeatureCollection,
-    filename: String,
-}
-
-#[repr(C)]
-struct StReadMultiBindData {
-    sources: Vec<FeatureCollectionWithSource>,
-    column_specs: Vec<ColumnSpec>,
-}
-
-#[repr(C)]
-struct StReadMultiInitData {
-    done: AtomicBool,
-}
 
 struct StReadMultiVTab;
 
@@ -238,12 +185,12 @@ impl VTab for StReadMultiVTab {
             let filename_vector = output.flat_vector(n_props + 1);
 
             let mut row_idx: usize = 0;
+            let mut wkb_converter = WkbConverter::new();
             for source in &bind_data.sources {
                 let fc = &source.feature_collection;
                 for f in &fc.features {
-                    let b = feature_to_wkb(f)?;
-                    let b_ref: &[u8] = b.as_ref();
-                    geom_vector.insert(row_idx, b_ref);
+                    let wkb_data = wkb_converter.convert(f)?;
+                    geom_vector.insert(row_idx, wkb_data);
                     filename_vector.insert(row_idx, source.filename.as_str());
 
                     if let Some(properties) = &f.properties {
@@ -290,45 +237,6 @@ impl VTab for StReadMultiVTab {
     }
 }
 
-// glob() doesn't handle tilda, so I have to.
-fn expand_tilde(path: &str) -> String {
-    if path.starts_with('~') {
-        if let Some(home) = home::home_dir() {
-            path.replacen('~', &home.to_string_lossy(), 1)
-        } else {
-            path.to_string()
-        }
-    } else {
-        path.to_string()
-    }
-}
-
-fn is_geojson<P: AsRef<Path>>(path: P) -> bool {
-    match path.as_ref().extension() {
-        Some(ext) => ext.to_string_lossy() == "geojson",
-        None => false,
-    }
-}
-
-fn is_gpkg<P: AsRef<Path>>(path: P) -> bool {
-    match path.as_ref().extension() {
-        Some(ext) => ext.to_string_lossy() == "gpkg",
-        None => false,
-    }
-}
-
-fn feature_to_wkb(feature: &geojson::Feature) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let mut buffer = Vec::new();
-    match &feature.geometry {
-        Some(geojson_geom) => {
-            let geometry: geo_types::Geometry = geojson_geom.try_into()?;
-            wkb::writer::write_geometry(&mut buffer, &geometry, &Default::default()).unwrap();
-        }
-        None => panic!("Geometry should exist!"),
-    }
-
-    Ok(buffer)
-}
 
 const EXTENSION_NAME: &str = env!("CARGO_PKG_NAME");
 
