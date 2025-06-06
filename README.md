@@ -1,12 +1,13 @@
 # `ST_Read_Multi`
 
-> [!WARNING]
-> This is just a temporary, poor man's solution, until `ST_Read` supports multiple
-> file inputs (cf. [duckdb/duckdb-spatial#191](https://github.com/duckdb/duckdb-spatial/issues/191#issuecomment-2935130507)).
-> You should use this only when you have to get all the things done in DuckDB.
-> Usually, you should use `gdal vector concat` (or `ogrmerge`) to merge the files.
-
 This extension is to import multiple files e.g. `ST_Read_Multi('path/to/*.geojson')`.
+
+> [!WARNING]
+> This is just a temporary, poor man's solution, until `ST_Read` officially supports multiple
+> file inputs (cf. [duckdb/duckdb-spatial#191](https://github.com/duckdb/duckdb-spatial/issues/191#issuecomment-2935130507)).
+> You should use this only when you have no choice but to get all the things done in DuckDB.
+> Usually, you should use `gdal vector concat` (or `ogrmerge`) to merge the files before
+> importing the data into DuckDB.
 
 ## Limitations
 
