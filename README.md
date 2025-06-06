@@ -31,20 +31,20 @@ LOAD st_read_multi;
 ### GeoJSON
 
 ```sql
-SELECT * REPLACE ST_GeomFromWkb(geometry),
+SELECT * REPLACE (ST_GeomFromWkb(geometry) as geometry)
 FROM ST_Read_Multi('test/data/*.geojson');
 ```
 
 ```
-┌──────────────────────────┬────────┬─────────┐
-│ st_geomfromwkb(geometry) │  val1  │  val2   │
-│         geometry         │ double │ varchar │
-├──────────────────────────┼────────┼─────────┤
-│ POINT (1 2)              │    1.0 │ a       │
-│ POINT (10 20)            │    2.0 │ b       │
-│ POINT (100 200)          │    5.0 │ c       │
-│ POINT (111 222)          │    6.0 │ d       │
-└──────────────────────────┴────────┴─────────┘
+┌─────────────────┬────────┬─────────┬───────────────────────────┐
+│    geometry     │  val1  │  val2   │         filename          │
+│    geometry     │ double │ varchar │          varchar          │
+├─────────────────┼────────┼─────────┼───────────────────────────┤
+│ POINT (1 2)     │    1.0 │ a       │ test\data\points.geojson  │
+│ POINT (10 20)   │    2.0 │ b       │ test\data\points.geojson  │
+│ POINT (100 200) │    5.0 │ c       │ test\data\points2.geojson │
+│ POINT (111 222) │    6.0 │ d       │ test\data\points2.geojson │
+└─────────────────┴────────┴─────────┴───────────────────────────┘
 ```
 
 ### GeoPackage
@@ -53,10 +53,10 @@ Not Yet!
 
 ```sql
 -- load all layers
-SELECT * REPLACE ST_GeomFromWkb(geometry),
+SELECT * REPLACE (ST_GeomFromWkb(geometry) as geometry)
 FROM ST_Read_Multi('test/data/*.gpkg');
 
 -- load specific layers
-SELECT * REPLACE ST_GeomFromWkb(geometry),
+SELECT * REPLACE (ST_GeomFromWkb(geometry) as geometry)
 FROM ST_Read_Multi('test/data/*.gpkg', layer='layer_1');
 ```

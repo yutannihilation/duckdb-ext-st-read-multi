@@ -63,8 +63,14 @@ struct ColumnSpec {
 }
 
 #[repr(C)]
+struct FeatureCollectionWithSource {
+    feature_collection: FeatureCollection,
+    filename: String,
+}
+
+#[repr(C)]
 struct StReadMultiBindData {
-    fc: Vec<FeatureCollection>,
+    sources: Vec<FeatureCollectionWithSource>,
     column_specs: Vec<ColumnSpec>,
 }
 
@@ -95,7 +101,7 @@ impl VTab for StReadMultiVTab {
             return Err("All file must have extension of either '.geojson' or '.gpkg'".into());
         }
 
-        let mut fc: Vec<FeatureCollection> = Vec::new();
+        let mut sources: Vec<FeatureCollectionWithSource> = Vec::new();
         let mut column_specs: Option<Vec<ColumnSpec>> = None;
 
         for path in paths {
@@ -133,7 +139,10 @@ impl VTab for StReadMultiVTab {
                     // Sort by name for consistent ordering
                     column_specs_local.sort_by(|a, b| a.name.cmp(&b.name));
 
-                    fc.push(feature_collection);
+                    sources.push(FeatureCollectionWithSource {
+                        feature_collection,
+                        filename: path.to_string_lossy().into_owned(),
+                    });
                 }
                 _ => {
                     return Err(format!(
@@ -198,7 +207,13 @@ impl VTab for StReadMultiVTab {
             bind.add_result_column(&spec.name, spec.column_type.into());
         }
 
-        Ok(StReadMultiBindData { fc, column_specs })
+        // filename column to track source file
+        bind.add_result_column("filename", LogicalTypeId::Varchar.into());
+
+        Ok(StReadMultiBindData {
+            sources,
+            column_specs,
+        })
     }
 
     fn init(_: &InitInfo) -> Result<Self::InitData, Box<dyn std::error::Error>> {
@@ -217,16 +232,19 @@ impl VTab for StReadMultiVTab {
             output.set_len(0);
         } else {
             let geom_vector = output.flat_vector(0);
-            let mut property_vectors: Vec<FlatVector> = (0..bind_data.column_specs.len())
-                .map(|i| output.flat_vector(i + 1))
-                .collect();
+            let n_props = bind_data.column_specs.len();
+            let mut property_vectors: Vec<FlatVector> =
+                (0..n_props).map(|i| output.flat_vector(i + 1)).collect();
+            let filename_vector = output.flat_vector(n_props + 1);
 
             let mut row_idx: usize = 0;
-            for fc in &bind_data.fc {
+            for source in &bind_data.sources {
+                let fc = &source.feature_collection;
                 for f in &fc.features {
                     let b = feature_to_wkb(f)?;
                     let b_ref: &[u8] = b.as_ref();
                     geom_vector.insert(row_idx, b_ref);
+                    filename_vector.insert(row_idx, source.filename.as_str());
 
                     if let Some(properties) = &f.properties {
                         for (prop_idx, spec) in bind_data.column_specs.iter().enumerate() {
