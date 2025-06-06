@@ -19,7 +19,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]
 enum ColumnType {
     Boolean,
@@ -116,7 +116,7 @@ impl VTab for StReadMultiVTab {
                 _ => {
                     return Err(format!(
                         "GeoJSON file must be FeatureCollection: {}",
-                        path.to_string_lossy()
+                        path.to_string_lossy().replace('\\', "/"),
                     )
                     .into());
                 }
@@ -125,7 +125,49 @@ impl VTab for StReadMultiVTab {
             if column_specs.is_none() {
                 let _ = column_specs.insert(column_specs_local);
             } else {
-                // TODO: verify if the schema matches
+                // Verify if the schema matches
+                let existing_specs = column_specs.as_ref().unwrap();
+
+                // Check if the number of columns matches
+                if existing_specs.len() != column_specs_local.len() {
+                    return Err(format!(
+                        "Schema mismatch in {}: expected {} columns, found {}",
+                        path.to_string_lossy().replace('\\', "/"),
+                        existing_specs.len(),
+                        column_specs_local.len()
+                    )
+                    .into());
+                }
+
+                // Check if column names and types match
+                for (i, (existing, local)) in existing_specs
+                    .iter()
+                    .zip(column_specs_local.iter())
+                    .enumerate()
+                {
+                    if existing.name != local.name {
+                        return Err(format!(
+                            "Schema mismatch in {}: column {} has name '{}', expected '{}'",
+                            path.to_string_lossy().replace('\\', "/"),
+                            i,
+                            local.name,
+                            existing.name
+                        )
+                        .into());
+                    }
+
+                    // Compare column types using discriminant to check enum variant equality
+                    if &existing.column_type != &local.column_type {
+                        return Err(format!(
+                            "Schema mismatch in {}: column '{}' has type {:?}, expected {:?}",
+                            path.to_string_lossy().replace('\\', "/"),
+                            local.name,
+                            local.column_type,
+                            existing.column_type
+                        )
+                        .into());
+                    }
+                }
             }
         }
 
