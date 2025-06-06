@@ -28,7 +28,7 @@ use crate::{
         ColumnSpec, ColumnType, FeatureCollectionWithSource, StReadMultiBindData,
         StReadMultiInitData,
     },
-    utils::{expand_tilde, is_geojson, is_gpkg},
+    utils::{expand_tilde, is_geojson, is_gpkg, validate_schema},
 };
 
 struct StReadMultiVTab;
@@ -106,46 +106,10 @@ impl VTab for StReadMultiVTab {
             }
 
             if let Some(existing_specs) = &column_specs {
-                // Check if the number of columns matches
-                if existing_specs.len() != column_specs_local.len() {
-                    return Err(format!(
-                        "Schema mismatch in {}: expected {} columns, found {}",
-                        path.to_string_lossy().replace('\\', "/"),
-                        existing_specs.len(),
-                        column_specs_local.len()
-                    )
-                    .into());
-                }
-
-                // Since both are sorted by name, we can compare directly
-                for (i, (existing, local)) in existing_specs
-                    .iter()
-                    .zip(column_specs_local.iter())
-                    .enumerate()
-                {
-                    if existing.name != local.name {
-                        return Err(format!(
-                            "Schema mismatch in {}: column {} has name '{}', expected '{}'",
-                            path.to_string_lossy().replace('\\', "/"),
-                            i,
-                            local.name,
-                            existing.name
-                        )
-                        .into());
-                    }
-
-                    if existing.column_type != local.column_type {
-                        return Err(format!(
-                            "Schema mismatch in {}: column '{}' has type {:?}, expected {:?}",
-                            path.to_string_lossy().replace('\\', "/"),
-                            local.name,
-                            local.column_type,
-                            existing.column_type
-                        )
-                        .into());
-                    }
-                }
+                // check if the schema matches
+                validate_schema(existing_specs, &column_specs_local, &path)?;
             } else {
+                // if it's the first file, use the spec as the base.
                 let _ = column_specs.insert(column_specs_local);
             }
         }
