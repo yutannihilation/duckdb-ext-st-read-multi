@@ -20,6 +20,14 @@ This extension is to import multiple files e.g. `ST_Read_Multi('path/to/*.geojso
 
 ## Usages
 
+Install the extension from community repository first.
+
+```sql
+INSTALL st_read_multi FROM community;
+
+LOAD st_read_multi;
+```
+
 ### GeoJSON
 
 ```sql
