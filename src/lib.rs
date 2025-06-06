@@ -103,13 +103,35 @@ impl VTab for StReadMultiVTab {
             let f = File::open(&path)?;
             match geojson::GeoJson::from_reader(BufReader::new(f))? {
                 geojson::GeoJson::FeatureCollection(feature_collection) => {
-                    for (key, val) in feature_collection.features[0].properties_iter() {
-                        let column_type = val.try_into()?;
+                    // Use first 100 features to determine schema
+                    let sample_size = std::cmp::min(100, feature_collection.features.len());
+                    let mut property_type_map: std::collections::HashMap<String, ColumnType> = std::collections::HashMap::new();
+                    
+                    for i in 0..sample_size {
+                        for (key, val) in feature_collection.features[i].properties_iter() {
+                            // Skip NULL values
+                            if val.is_null() {
+                                continue;
+                            }
+                            
+                            let column_type: ColumnType = val.try_into()?;
+                            
+                            // If key doesn't exist yet or current type is more specific, update it
+                            property_type_map.entry(key.to_string())
+                                .or_insert(column_type);
+                        }
+                    }
+                    
+                    // Convert to ordered vector
+                    for (name, column_type) in property_type_map {
                         column_specs_local.push(ColumnSpec {
-                            name: key.to_string(),
+                            name,
                             column_type,
                         });
                     }
+                    
+                    // Sort by name for consistent ordering
+                    column_specs_local.sort_by(|a, b| a.name.cmp(&b.name));
 
                     fc.push(feature_collection);
                 }
@@ -139,7 +161,7 @@ impl VTab for StReadMultiVTab {
                     .into());
                 }
 
-                // Check if column names and types match
+                // Since both are sorted by name, we can compare directly
                 for (i, (existing, local)) in existing_specs
                     .iter()
                     .zip(column_specs_local.iter())
@@ -156,7 +178,6 @@ impl VTab for StReadMultiVTab {
                         .into());
                     }
 
-                    // Compare column types using discriminant to check enum variant equality
                     if &existing.column_type != &local.column_type {
                         return Err(format!(
                             "Schema mismatch in {}: column '{}' has type {:?}, expected {:?}",
@@ -209,21 +230,29 @@ impl VTab for StReadMultiVTab {
 
                     if let Some(properties) = &f.properties {
                         for (prop_idx, spec) in bind_data.column_specs.iter().enumerate() {
-                            let val = properties.get(&spec.name).unwrap();
+                            let val = properties.get(&spec.name);
 
-                            match spec.column_type {
-                                // Varchar needs insert()
-                                ColumnType::Varchar => {
-                                    property_vectors[prop_idx]
-                                        .insert(row_idx, val.as_str().unwrap());
+                            match val {
+                                Some(v) if !v.is_null() => {
+                                    match spec.column_type {
+                                        // Varchar needs insert()
+                                        ColumnType::Varchar => {
+                                            property_vectors[prop_idx]
+                                                .insert(row_idx, v.as_str().unwrap());
+                                        }
+                                        ColumnType::Boolean => {
+                                            property_vectors[prop_idx].as_mut_slice()[row_idx] =
+                                                v.as_bool().unwrap();
+                                        }
+                                        ColumnType::Double => {
+                                            property_vectors[prop_idx].as_mut_slice()[row_idx] =
+                                                v.as_f64().unwrap();
+                                        }
+                                    }
                                 }
-                                ColumnType::Boolean => {
-                                    property_vectors[prop_idx].as_mut_slice()[row_idx] =
-                                        val.as_bool().unwrap();
-                                }
-                                ColumnType::Double => {
-                                    property_vectors[prop_idx].as_mut_slice()[row_idx] =
-                                        val.as_f64().unwrap();
+                                _ => {
+                                    // Handle NULL or missing values
+                                    property_vectors[prop_idx].set_null(row_idx);
                                 }
                             }
                         }
