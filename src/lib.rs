@@ -15,6 +15,7 @@ use std::{
     error::Error,
     fs::File,
     io::BufReader,
+    path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
 };
 
@@ -83,14 +84,22 @@ impl VTab for StReadMultiVTab {
         bind.add_result_column("geometry", LogicalTypeId::Blob.into());
 
         let path_pattern = bind.get_parameter(0).to_string();
+        let paths: Vec<PathBuf> = glob(&path_pattern)?.collect::<Result<_, _>>()?;
+
+        if paths.is_empty() {
+            return Err("Doesn't match to any file".into());
+        }
+
+        if !(paths.iter().all(is_geojson) || paths.iter().all(is_gpkg)) {
+            return Err("All file must have extension of either '.geojson' or '.gpkg'".into());
+        }
 
         let mut fc: Vec<FeatureCollection> = Vec::new();
         let mut column_specs: Option<Vec<ColumnSpec>> = None;
 
-        for entry in glob(&path_pattern)? {
+        for path in paths {
             let mut column_specs_local: Vec<ColumnSpec> = Vec::new();
 
-            let path = entry?;
             let f = File::open(&path)?;
             match geojson::GeoJson::from_reader(BufReader::new(f))? {
                 geojson::GeoJson::FeatureCollection(feature_collection) => {
@@ -189,6 +198,20 @@ impl VTab for StReadMultiVTab {
 
     fn parameters() -> Option<Vec<LogicalTypeHandle>> {
         Some(vec![LogicalTypeHandle::from(LogicalTypeId::Varchar)])
+    }
+}
+
+fn is_geojson<P: AsRef<Path>>(path: P) -> bool {
+    match path.as_ref().extension() {
+        Some(ext) => ext.to_string_lossy() == "geojson",
+        None => false,
+    }
+}
+
+fn is_gpkg<P: AsRef<Path>>(path: P) -> bool {
+    match path.as_ref().extension() {
+        Some(ext) => ext.to_string_lossy() == "gpkg",
+        None => false,
     }
 }
 
