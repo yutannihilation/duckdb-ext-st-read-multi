@@ -105,12 +105,7 @@ impl VTab for StReadMultiVTab {
                 }
             }
 
-            if column_specs.is_none() {
-                let _ = column_specs.insert(column_specs_local);
-            } else {
-                // Verify if the schema matches
-                let existing_specs = column_specs.as_ref().unwrap();
-
+            if let Some(existing_specs) = &column_specs {
                 // Check if the number of columns matches
                 if existing_specs.len() != column_specs_local.len() {
                     return Err(format!(
@@ -150,6 +145,8 @@ impl VTab for StReadMultiVTab {
                         .into());
                     }
                 }
+            } else {
+                let _ = column_specs.insert(column_specs_local);
             }
         }
 
