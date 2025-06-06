@@ -44,8 +44,11 @@ FROM ST_Read_Multi('test/data/*.geojson');
 Not Yet!
 
 ```sql
-SELECT ST_GeomFromWkb(geometry),
-       val1,
-       val2
+-- load all layers
+SELECT * REPLACE ST_GeomFromWkb(geometry),
 FROM ST_Read_Multi('test/data/*.gpkg');
+
+-- load specific layers
+SELECT * REPLACE ST_GeomFromWkb(geometry),
+FROM ST_Read_Multi('test/data/*.gpkg', layer='layer_1');
 ```
