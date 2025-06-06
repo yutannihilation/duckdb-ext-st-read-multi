@@ -44,3 +44,10 @@ FROM ST_Read_Multi('test/data/*.geojson');
 ### GeoPackage
 
 Not Yet!
+
+```sql
+SELECT ST_GeomFromWkb(geometry),
+       val1,
+       val2
+FROM ST_Read_Multi('test/data/*.gpkg');
+```
