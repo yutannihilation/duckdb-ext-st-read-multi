@@ -56,10 +56,15 @@ impl From<GeoJsonColumnType> for LogicalTypeHandle {
 }
 
 #[repr(C)]
+struct ColumnSpec {
+    name: String,
+    column_type: GeoJsonColumnType,
+}
+
+#[repr(C)]
 struct StReadMultiBindData {
     fc: Vec<FeatureCollection>,
-    column_names: Vec<String>,
-    column_types: Vec<GeoJsonColumnType>,
+    column_specs: Vec<ColumnSpec>,
 }
 
 #[repr(C)]
@@ -80,21 +85,21 @@ impl VTab for StReadMultiVTab {
         let path_pattern = bind.get_parameter(0).to_string();
 
         let mut fc: Vec<FeatureCollection> = Vec::new();
-        let mut column_names: Option<Vec<String>> = None;
-        let mut column_types: Option<Vec<GeoJsonColumnType>> = None;
+        let mut column_specs: Option<Vec<ColumnSpec>> = None;
 
         for entry in glob(&path_pattern)? {
-            let mut column_names_local: Vec<String> = Vec::new();
-            let mut column_types_local: Vec<GeoJsonColumnType> = Vec::new();
+            let mut column_specs_local: Vec<ColumnSpec> = Vec::new();
 
             let path = entry?;
             let f = File::open(&path)?;
             match geojson::GeoJson::from_reader(BufReader::new(f))? {
                 geojson::GeoJson::FeatureCollection(feature_collection) => {
                     for (key, val) in feature_collection.features[0].properties_iter() {
-                        column_names_local.push(key.to_string());
                         let column_type = val.try_into()?;
-                        column_types_local.push(column_type);
+                        column_specs_local.push(ColumnSpec {
+                            name: key.to_string(),
+                            column_type,
+                        });
                     }
 
                     fc.push(feature_collection);
@@ -108,31 +113,20 @@ impl VTab for StReadMultiVTab {
                 }
             }
 
-            if column_names.is_none() {
-                let _ = column_names.insert(column_names_local);
-            } else {
-                // TODO: verify if the schema matches
-            }
-
-            if column_types.is_none() {
-                let _ = column_types.insert(column_types_local);
+            if column_specs.is_none() {
+                let _ = column_specs.insert(column_specs_local);
             } else {
                 // TODO: verify if the schema matches
             }
         }
 
-        let column_names = column_names.unwrap();
-        let column_types = column_types.unwrap();
+        let column_specs = column_specs.unwrap();
 
-        for (i, key) in column_names.iter().enumerate() {
-            bind.add_result_column(key, column_types[i].into());
+        for spec in column_specs.iter() {
+            bind.add_result_column(&spec.name, spec.column_type.into());
         }
 
-        Ok(StReadMultiBindData {
-            fc,
-            column_names,
-            column_types,
-        })
+        Ok(StReadMultiBindData { fc, column_specs })
     }
 
     fn init(_: &InitInfo) -> Result<Self::InitData, Box<dyn std::error::Error>> {
@@ -151,7 +145,7 @@ impl VTab for StReadMultiVTab {
             output.set_len(0);
         } else {
             let geom_vector = output.flat_vector(0);
-            let mut property_vectors: Vec<FlatVector> = (0..bind_data.column_types.len())
+            let mut property_vectors: Vec<FlatVector> = (0..bind_data.column_specs.len())
                 .map(|i| output.flat_vector(i + 1))
                 .collect();
 
@@ -163,11 +157,10 @@ impl VTab for StReadMultiVTab {
                     geom_vector.insert(row_idx, b_ref);
 
                     if let Some(properties) = &f.properties {
-                        for (prop_idx, ty) in bind_data.column_types.iter().enumerate() {
-                            let key = &bind_data.column_names[prop_idx];
-                            let val = properties.get(key).unwrap();
+                        for (prop_idx, spec) in bind_data.column_specs.iter().enumerate() {
+                            let val = properties.get(&spec.name).unwrap();
 
-                            match ty {
+                            match spec.column_type {
                                 // Varchar needs insert()
                                 GeoJsonColumnType::Varchar => {
                                     property_vectors[prop_idx]

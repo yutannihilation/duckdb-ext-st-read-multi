@@ -11,6 +11,10 @@ Catalog Error: Scalar Function with name st_read_multi does not exist!
 # Require statement will ensure the extension is loaded from now on
 require st_read_multi
 
+# TODO: I can't
+statement ok
+INSTALL spatial;
+
 statement ok
 LOAD spatial;
 
