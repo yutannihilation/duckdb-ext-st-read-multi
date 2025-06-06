@@ -21,10 +21,15 @@ use std::{
     path::PathBuf,
     sync::atomic::{AtomicBool, Ordering},
 };
-use types::*;
-use utils::*;
 use wkb::WkbConverter;
 
+use crate::{
+    types::{
+        ColumnSpec, ColumnType, FeatureCollectionWithSource, StReadMultiBindData,
+        StReadMultiInitData,
+    },
+    utils::{expand_tilde, is_geojson, is_gpkg},
+};
 
 struct StReadMultiVTab;
 
@@ -236,7 +241,6 @@ impl VTab for StReadMultiVTab {
         Some(vec![LogicalTypeHandle::from(LogicalTypeId::Varchar)])
     }
 }
-
 
 const EXTENSION_NAME: &str = env!("CARGO_PKG_NAME");
 

@@ -6,9 +6,7 @@ pub struct WkbConverter {
 
 impl WkbConverter {
     pub fn new() -> Self {
-        Self {
-            buffer: Vec::new(),
-        }
+        Self { buffer: Vec::new() }
     }
 
     pub fn convert(&mut self, feature: &Feature) -> Result<&[u8], Box<dyn std::error::Error>> {
@@ -16,7 +14,8 @@ impl WkbConverter {
         match &feature.geometry {
             Some(geojson_geom) => {
                 let geometry: geo_types::Geometry = geojson_geom.try_into()?;
-                wkb::writer::write_geometry(&mut self.buffer, &geometry, &Default::default()).unwrap();
+                wkb::writer::write_geometry(&mut self.buffer, &geometry, &Default::default())
+                    .unwrap();
             }
             None => panic!("Geometry should exist!"),
         }

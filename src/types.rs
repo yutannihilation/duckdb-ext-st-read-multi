@@ -11,7 +11,7 @@ pub enum ColumnType {
     Double,
 }
 
-// TODO: NULL should be handled outside of this function
+// Note: NULL must be handled outside of this function
 impl TryFrom<&serde_json::Value> for ColumnType {
     type Error = Box<dyn std::error::Error>;
 
