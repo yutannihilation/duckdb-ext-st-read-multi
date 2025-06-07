@@ -48,9 +48,33 @@ pub struct ColumnSpec {
 }
 
 #[repr(C)]
-pub struct StReadMultiBindData {
+pub struct GeoJsonBindData {
     pub sources: Vec<GeoJsonDataSource>,
     pub column_specs: Vec<ColumnSpec>,
+}
+
+#[repr(C)]
+pub struct GpkgBindData {
+    // pub sources: Vec<GeoJsonDataSource>,
+    pub column_specs: Vec<ColumnSpec>,
+}
+
+#[repr(C)]
+pub enum StReadMultiBindData {
+    GeoJson(GeoJsonBindData),
+    Gpkg(GpkgBindData),
+}
+
+impl From<GeoJsonBindData> for StReadMultiBindData {
+    fn from(value: GeoJsonBindData) -> Self {
+        Self::GeoJson(value)
+    }
+}
+
+impl From<GpkgBindData> for StReadMultiBindData {
+    fn from(value: GpkgBindData) -> Self {
+        Self::Gpkg(value)
+    }
 }
 
 #[repr(C)]

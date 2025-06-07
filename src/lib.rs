@@ -17,8 +17,6 @@ use glob::glob;
 use libduckdb_sys as ffi;
 use std::{
     error::Error,
-    fs::File,
-    io::BufReader,
     path::PathBuf,
     sync::atomic::{AtomicBool, Ordering},
 };
@@ -26,7 +24,7 @@ use wkb::WkbConverter;
 
 use crate::{
     geojson::GeoJsonDataSource,
-    types::{ColumnSpec, ColumnType, StReadMultiBindData, StReadMultiInitData},
+    types::{ColumnSpec, ColumnType, GeoJsonBindData, StReadMultiBindData, StReadMultiInitData},
     utils::{expand_tilde, is_geojson, is_gpkg, validate_schema},
 };
 
@@ -48,39 +46,44 @@ impl VTab for StReadMultiVTab {
             return Err("Doesn't match to any file".into());
         }
 
-        if !(paths.iter().all(is_geojson) || paths.iter().all(is_gpkg)) {
-            return Err("All file must have extension of either '.geojson' or '.gpkg'".into());
-        }
+        if paths.iter().all(is_geojson) {
+            let mut sources: Vec<GeoJsonDataSource> = Vec::new();
+            let mut column_specs: Option<Vec<ColumnSpec>> = None;
 
-        let mut sources: Vec<GeoJsonDataSource> = Vec::new();
-        let mut column_specs: Option<Vec<ColumnSpec>> = None;
+            for path in paths {
+                let (data_source, column_specs_local) = GeoJsonDataSource::parse(&path)?;
+                sources.push(data_source);
 
-        for path in paths {
-            let (data_source, column_specs_local) = GeoJsonDataSource::parse(&path)?;
-            sources.push(data_source);
-
-            if let Some(existing_specs) = &column_specs {
-                // check if the schema matches
-                validate_schema(existing_specs, &column_specs_local, &path)?;
-            } else {
-                // if it's the first file, use the spec as the base.
-                let _ = column_specs.insert(column_specs_local);
+                if let Some(existing_specs) = &column_specs {
+                    // check if the schema matches
+                    validate_schema(existing_specs, &column_specs_local, &path)?;
+                } else {
+                    // if it's the first file, use the spec as the base.
+                    let _ = column_specs.insert(column_specs_local);
+                }
             }
+
+            let column_specs = column_specs.unwrap();
+
+            for spec in column_specs.iter() {
+                bind.add_result_column(&spec.name, spec.column_type.into());
+            }
+
+            // filename column to track source file
+            bind.add_result_column("filename", LogicalTypeId::Varchar.into());
+
+            return Ok(GeoJsonBindData {
+                sources,
+                column_specs,
+            }
+            .into());
         }
 
-        let column_specs = column_specs.unwrap();
-
-        for spec in column_specs.iter() {
-            bind.add_result_column(&spec.name, spec.column_type.into());
+        if paths.iter().all(is_gpkg) {
+            todo!()
         }
 
-        // filename column to track source file
-        bind.add_result_column("filename", LogicalTypeId::Varchar.into());
-
-        Ok(StReadMultiBindData {
-            sources,
-            column_specs,
-        })
+        Err("All file must have extension of either '.geojson' or '.gpkg'".into())
     }
 
     fn init(_: &InitInfo) -> Result<Self::InitData, Box<dyn std::error::Error>> {
@@ -98,58 +101,65 @@ impl VTab for StReadMultiVTab {
         if init_data.done.swap(true, Ordering::Relaxed) {
             output.set_len(0);
         } else {
-            let geom_vector = output.flat_vector(0);
-            let n_props = bind_data.column_specs.len();
-            let mut property_vectors: Vec<FlatVector> =
-                (0..n_props).map(|i| output.flat_vector(i + 1)).collect();
-            let filename_vector = output.flat_vector(n_props + 1);
+            match bind_data {
+                StReadMultiBindData::GeoJson(bind_data_inner) => {
+                    let geom_vector = output.flat_vector(0);
+                    let n_props = bind_data_inner.column_specs.len();
+                    let mut property_vectors: Vec<FlatVector> =
+                        (0..n_props).map(|i| output.flat_vector(i + 1)).collect();
+                    let filename_vector = output.flat_vector(n_props + 1);
 
-            let mut row_idx: usize = 0;
-            let mut wkb_converter = WkbConverter::new();
-            for source in &bind_data.sources {
-                let fc = &source.feature_collection;
-                for f in &fc.features {
-                    let wkb_data = wkb_converter.convert(f)?;
-                    geom_vector.insert(row_idx, wkb_data);
-                    filename_vector.insert(row_idx, source.filename.as_str());
+                    let mut row_idx: usize = 0;
+                    let mut wkb_converter = WkbConverter::new();
+                    for source in &bind_data_inner.sources {
+                        let fc = &source.feature_collection;
+                        for f in &fc.features {
+                            let wkb_data = wkb_converter.convert(f)?;
+                            geom_vector.insert(row_idx, wkb_data);
+                            filename_vector.insert(row_idx, source.filename.as_str());
 
-                    if let Some(properties) = &f.properties {
-                        for (prop_idx, spec) in bind_data.column_specs.iter().enumerate() {
-                            let val = properties.get(&spec.name);
+                            if let Some(properties) = &f.properties {
+                                for (prop_idx, spec) in
+                                    bind_data_inner.column_specs.iter().enumerate()
+                                {
+                                    let val = properties.get(&spec.name);
 
-                            match val {
-                                Some(v) if !v.is_null() => {
-                                    match spec.column_type {
-                                        // Varchar needs insert()
-                                        ColumnType::Varchar => {
-                                            property_vectors[prop_idx]
-                                                .insert(row_idx, v.as_str().unwrap());
+                                    match val {
+                                        Some(v) if !v.is_null() => {
+                                            match spec.column_type {
+                                                // Varchar needs insert()
+                                                ColumnType::Varchar => {
+                                                    property_vectors[prop_idx]
+                                                        .insert(row_idx, v.as_str().unwrap());
+                                                }
+                                                ColumnType::Boolean => {
+                                                    property_vectors[prop_idx].as_mut_slice()
+                                                        [row_idx] = v.as_bool().unwrap();
+                                                }
+                                                ColumnType::Double => {
+                                                    property_vectors[prop_idx].as_mut_slice()
+                                                        [row_idx] = v.as_f64().unwrap();
+                                                }
+                                                // JSON doesn't have integer type.
+                                                _ => unreachable!(),
+                                            }
                                         }
-                                        ColumnType::Boolean => {
-                                            property_vectors[prop_idx].as_mut_slice()[row_idx] =
-                                                v.as_bool().unwrap();
+                                        _ => {
+                                            // Handle NULL or missing values
+                                            property_vectors[prop_idx].set_null(row_idx);
                                         }
-                                        ColumnType::Double => {
-                                            property_vectors[prop_idx].as_mut_slice()[row_idx] =
-                                                v.as_f64().unwrap();
-                                        }
-                                        // JSON doesn't have integer type.
-                                        _ => unreachable!(),
                                     }
                                 }
-                                _ => {
-                                    // Handle NULL or missing values
-                                    property_vectors[prop_idx].set_null(row_idx);
-                                }
                             }
+
+                            row_idx += 1;
                         }
                     }
 
-                    row_idx += 1;
+                    output.set_len(row_idx);
                 }
+                StReadMultiBindData::Gpkg(bind_data_inner) => todo!(),
             }
-
-            output.set_len(row_idx);
         }
         Ok(())
     }
