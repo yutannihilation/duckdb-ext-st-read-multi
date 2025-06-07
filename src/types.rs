@@ -9,6 +9,7 @@ pub enum ColumnType {
     Boolean,
     Varchar,
     Double,
+    Integer,
 }
 
 // Note: NULL must be handled outside of this function
@@ -23,9 +24,7 @@ impl TryFrom<&serde_json::Value> for ColumnType {
                 Ok(Self::Double)
             }
             serde_json::Value::String(_) => Ok(Self::Varchar),
-            _ => {
-                Err(format!("Unsupported type: {value:?}").into())
-            }
+            _ => Err(format!("Unsupported type: {value:?}").into()),
         }
     }
 }
@@ -35,6 +34,7 @@ impl From<ColumnType> for LogicalTypeHandle {
         match value {
             ColumnType::Boolean => LogicalTypeId::Boolean.into(),
             ColumnType::Double => LogicalTypeId::Double.into(),
+            ColumnType::Integer => LogicalTypeId::Integer.into(),
             ColumnType::Varchar => LogicalTypeId::Varchar.into(),
         }
     }

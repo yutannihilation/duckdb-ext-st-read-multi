@@ -179,6 +179,8 @@ impl VTab for StReadMultiVTab {
                                             property_vectors[prop_idx].as_mut_slice()[row_idx] =
                                                 v.as_f64().unwrap();
                                         }
+                                        // JSON doesn't have integer type.
+                                        _ => unreachable!(),
                                     }
                                 }
                                 _ => {
