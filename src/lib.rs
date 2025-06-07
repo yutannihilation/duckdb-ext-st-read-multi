@@ -2,6 +2,7 @@ extern crate duckdb;
 extern crate duckdb_loadable_macros;
 extern crate libduckdb_sys;
 
+mod geojson;
 mod types;
 mod utils;
 mod wkb;
@@ -24,10 +25,8 @@ use std::{
 use wkb::WkbConverter;
 
 use crate::{
-    types::{
-        ColumnSpec, ColumnType, FeatureCollectionWithSource, StReadMultiBindData,
-        StReadMultiInitData,
-    },
+    geojson::GeoJsonDataSource,
+    types::{ColumnSpec, ColumnType, StReadMultiBindData, StReadMultiInitData},
     utils::{expand_tilde, is_geojson, is_gpkg, validate_schema},
 };
 
@@ -53,57 +52,12 @@ impl VTab for StReadMultiVTab {
             return Err("All file must have extension of either '.geojson' or '.gpkg'".into());
         }
 
-        let mut sources: Vec<FeatureCollectionWithSource> = Vec::new();
+        let mut sources: Vec<GeoJsonDataSource> = Vec::new();
         let mut column_specs: Option<Vec<ColumnSpec>> = None;
 
         for path in paths {
-            let mut column_specs_local: Vec<ColumnSpec> = Vec::new();
-
-            let f = File::open(&path)?;
-            match geojson::GeoJson::from_reader(BufReader::new(f))? {
-                geojson::GeoJson::FeatureCollection(feature_collection) => {
-                    // Use first 100 features to determine schema
-                    let sample_size = std::cmp::min(100, feature_collection.features.len());
-                    let mut property_type_map: std::collections::HashMap<String, ColumnType> =
-                        std::collections::HashMap::new();
-
-                    for i in 0..sample_size {
-                        for (key, val) in feature_collection.features[i].properties_iter() {
-                            // Skip NULL values
-                            if val.is_null() {
-                                continue;
-                            }
-
-                            let column_type: ColumnType = val.try_into()?;
-
-                            // If key doesn't exist yet or current type is more specific, update it
-                            property_type_map
-                                .entry(key.to_string())
-                                .or_insert(column_type);
-                        }
-                    }
-
-                    // Convert to ordered vector
-                    for (name, column_type) in property_type_map {
-                        column_specs_local.push(ColumnSpec { name, column_type });
-                    }
-
-                    // Sort by name for consistent ordering
-                    column_specs_local.sort_by(|a, b| a.name.cmp(&b.name));
-
-                    sources.push(FeatureCollectionWithSource {
-                        feature_collection,
-                        filename: path.to_string_lossy().into_owned(),
-                    });
-                }
-                _ => {
-                    return Err(format!(
-                        "GeoJSON file must be FeatureCollection: {}",
-                        path.to_string_lossy().replace('\\', "/"),
-                    )
-                    .into());
-                }
-            }
+            let (data_source, column_specs_local) = GeoJsonDataSource::parse(&path)?;
+            sources.push(data_source);
 
             if let Some(existing_specs) = &column_specs {
                 // check if the schema matches

@@ -1,7 +1,8 @@
 use duckdb::core::LogicalTypeHandle;
 use duckdb::core::LogicalTypeId;
-use geojson::FeatureCollection;
 use std::sync::atomic::AtomicBool;
+
+use crate::geojson::GeoJsonDataSource;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]
@@ -47,14 +48,8 @@ pub struct ColumnSpec {
 }
 
 #[repr(C)]
-pub struct FeatureCollectionWithSource {
-    pub feature_collection: FeatureCollection,
-    pub filename: String,
-}
-
-#[repr(C)]
 pub struct StReadMultiBindData {
-    pub sources: Vec<FeatureCollectionWithSource>,
+    pub sources: Vec<GeoJsonDataSource>,
     pub column_specs: Vec<ColumnSpec>,
 }
 
