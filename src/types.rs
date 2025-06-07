@@ -11,6 +11,7 @@ pub enum ColumnType {
     Varchar,
     Double,
     Integer,
+    Geometry,
 }
 
 // Note: NULL must be handled outside of this function
@@ -37,6 +38,7 @@ impl From<ColumnType> for LogicalTypeHandle {
             ColumnType::Double => LogicalTypeId::Double.into(),
             ColumnType::Integer => LogicalTypeId::Integer.into(),
             ColumnType::Varchar => LogicalTypeId::Varchar.into(),
+            ColumnType::Geometry => LogicalTypeId::Blob.into(),
         }
     }
 }

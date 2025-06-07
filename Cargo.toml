@@ -25,6 +25,7 @@ serde_json = "1.0.140"
 
 # Gpkg
 limbo = { git = "https://github.com/tursodatabase/limbo/", version = "0.0.22-pre.1" }
+pollster = "0.4.0"
 
 # file path
 glob = "0.3.2"

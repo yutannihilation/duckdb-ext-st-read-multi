@@ -3,6 +3,7 @@ extern crate duckdb_loadable_macros;
 extern crate libduckdb_sys;
 
 mod geojson;
+mod gpkg;
 mod types;
 mod utils;
 mod wkb;
