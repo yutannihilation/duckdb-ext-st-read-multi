@@ -28,9 +28,14 @@ libduckdb-sys = { version = "1.3.0", features = ["loadable-extension"] }
 
 # GIS data
 geo-types = "0.7.16"
+wkb = "0.9.0"
+
+# GeoJSON
 geojson = "0.24.2"
 serde_json = "1.0.140"
-wkb = "0.9.0"
+
+# Gpkg
+limbo = { git = "https://github.com/tursodatabase/limbo/", version = "0.0.22-pre.1" }
 
 # file path
 glob = "0.3.2"
