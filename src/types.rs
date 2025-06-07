@@ -3,6 +3,7 @@ use duckdb::core::LogicalTypeId;
 use std::sync::atomic::AtomicBool;
 
 use crate::geojson::GeoJsonDataSource;
+use crate::gpkg::GpkgDataSource;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]
@@ -43,6 +44,7 @@ impl From<ColumnType> for LogicalTypeHandle {
     }
 }
 
+#[derive(Clone)]
 #[repr(C)]
 pub struct ColumnSpec {
     pub name: String,
@@ -57,7 +59,7 @@ pub struct GeoJsonBindData {
 
 #[repr(C)]
 pub struct GpkgBindData {
-    // pub sources: Vec<GeoJsonDataSource>,
+    pub sources: Vec<GpkgDataSource>,
     pub column_specs: Vec<ColumnSpec>,
 }
 

@@ -40,10 +40,10 @@ FROM ST_Read_Multi('test/data/*.geojson');
 │    geometry     │  val1  │  val2   │         filename          │
 │    geometry     │ double │ varchar │          varchar          │
 ├─────────────────┼────────┼─────────┼───────────────────────────┤
-│ POINT (1 2)     │    1.0 │ a       │ test\data\points.geojson  │
-│ POINT (10 20)   │    2.0 │ b       │ test\data\points.geojson  │
-│ POINT (100 200) │    5.0 │ c       │ test\data\points2.geojson │
-│ POINT (111 222) │    6.0 │ d       │ test\data\points2.geojson │
+│ POINT (1 2)     │    1.0 │ a       │ test/data/points.geojson  │
+│ POINT (10 20)   │    2.0 │ b       │ test/data/points.geojson  │
+│ POINT (100 200) │    5.0 │ c       │ test/data/points2.geojson │
+│ POINT (111 222) │    6.0 │ d       │ test/data/points2.geojson │
 └─────────────────┴────────┴─────────┴───────────────────────────┘
 ```
 
@@ -54,8 +54,22 @@ Not Yet!
 ```sql
 -- load all layers
 SELECT * REPLACE (ST_GeomFromWkb(geometry) as geometry)
-FROM ST_Read_Multi('test/data/*.gpkg');
+FROM ST_Read_Multi('test/data/points*.gpkg');
+```
 
+```
+┌─────────────────┬───────┬─────────┬────────────────────────┐
+│    geometry     │ val1  │  val2   │        filename        │
+│    geometry     │ int32 │ varchar │        varchar         │
+├─────────────────┼───────┼─────────┼────────────────────────┤
+│ POINT (1 2)     │     1 │ a       │ test/data/points.gpkg  │
+│ POINT (10 20)   │     2 │ b       │ test/data/points.gpkg  │
+│ POINT (100 200) │     5 │ c       │ test/data/points2.gpkg │
+│ POINT (111 222) │     6 │ d       │ test/data/points2.gpkg │
+└─────────────────┴───────┴─────────┴────────────────────────┘
+```
+
+```
 -- load specific layers
 SELECT * REPLACE (ST_GeomFromWkb(geometry) as geometry)
 FROM ST_Read_Multi('test/data/*.gpkg', layer='layer_1');
