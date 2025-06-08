@@ -12,9 +12,9 @@ INSTALL spatial;
 statement ok
 LOAD spatial;
 
-# Confirm the extension works
+# multiple GeoJSON files
 query III
-SELECT ST_GeomFromWkb(geometry), val1, val2 FROM ST_Read_Multi('test/data/*.geojson');
+SELECT ST_GeomFromWkb(geometry), val1, val2 FROM ST_Read_Multi('test/data/points*.geojson');
 ----
 POINT (1 2)	 1.0	a
 POINT (10 20)	 2.0	b
@@ -26,3 +26,35 @@ statement error
 SELECT ST_GeomFromWkb(geometry), val1, val2 FROM ST_Read_Multi('test/data/different_schema/*.geojson');
 ----
 Binder Error: Schema mismatch in test/data/different_schema/points2.geojson: column 1 has name 'val3', expected 'val2'
+
+# multiple Gpkg files
+query III
+SELECT ST_GeomFromWkb(geom), val1, val2 FROM ST_Read_Multi('test/data/points*.gpkg');
+----
+POINT (1 2)	 1.0	a
+POINT (10 20)	 2.0	b
+POINT (100 200)	5.0	c
+POINT (111 222)	6.0	d
+
+# multi-layer Gpkg file
+query IIII
+SELECT ST_GeomFromWkb(geom), val1, val2, layer FROM ST_Read_Multi('test/data/multi_layers.gpkg');
+----
+POINT (100 200)	5.0	c	points2_point
+POINT (111 222)	6.0	d	points2_point
+POINT (1 2)	 1.0	a	points_point
+POINT (10 20)	 2.0	b	points_point
+
+# multiple Gpkg files with layer filtering
+query IIII
+SELECT ST_GeomFromWkb(geom), val1, val2, parse_filename(filename) FROM ST_Read_Multi('test/data/*.gpkg', layer='points');
+----
+POINT (1 2)	 1.0	a	points.gpkg
+POINT (10 20)	 2.0	b	points.gpkg
+POINT (100 200)	5.0	c	points2.gpkg
+POINT (111 222)	6.0	d	points2.gpkg
+
+statement error
+FROM ST_Read_Multi('test/data/*.gpkg', layer='no such layer');
+----
+Binder Error: No layers are found
