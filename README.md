@@ -50,8 +50,6 @@ FROM ST_Read_Multi('test/data/*.geojson');
 
 ### GeoPackage
 
-Not Yet!
-
 ```sql
 -- load all layers
 SELECT * REPLACE (ST_GeomFromWkb(geom) as geom)

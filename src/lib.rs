@@ -6,7 +6,6 @@ mod geojson;
 mod gpkg;
 mod types;
 mod utils;
-mod wkb;
 
 use duckdb::{
     core::{DataChunkHandle, FlatVector, Inserter, LogicalTypeHandle, LogicalTypeId},
@@ -14,6 +13,7 @@ use duckdb::{
     Connection, Result,
 };
 use duckdb_loadable_macros::duckdb_entrypoint_c_api;
+use geojson::WkbConverter;
 use glob::glob;
 use libduckdb_sys as ffi;
 use std::{
@@ -21,7 +21,6 @@ use std::{
     path::PathBuf,
     sync::atomic::{AtomicBool, Ordering},
 };
-use wkb::WkbConverter;
 
 use crate::{
     geojson::GeoJsonDataSource,

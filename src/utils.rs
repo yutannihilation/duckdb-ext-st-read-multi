@@ -1,5 +1,5 @@
-use std::path::Path;
 use crate::types::ColumnSpec;
+use std::path::Path;
 
 // glob() doesn't handle tilda, so I have to.
 pub fn expand_tilde(path: &str) -> String {
@@ -68,6 +68,6 @@ pub fn validate_schema(
             .into());
         }
     }
-    
+
     Ok(())
 }
