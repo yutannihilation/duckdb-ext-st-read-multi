@@ -84,15 +84,15 @@ impl VTab for StReadMultiVTab {
 
         if paths.iter().all(is_gpkg) {
             // Check if user specified a layer parameter
-            let layer_name = bind.get_named_parameter("layer");
+            let layer_name = bind.get_named_parameter("layer").map(|v| v.to_string());
 
-            let mut all_sources: Vec<GpkgDataSource> = Vec::new();
+            let mut sources: Vec<GpkgDataSource> = Vec::new();
             let mut column_specs: Option<Vec<ColumnSpec>> = None;
 
             for path in paths {
-                let sources = Gpkg::read_layer_data(&path, None)?;
+                let gpkg = Gpkg::new(&path, layer_name.clone())?;
 
-                for source in sources {
+                for source in gpkg.list_data_sources()? {
                     if let Some(existing_specs) = &column_specs {
                         // check if the schema matches
                         validate_schema(existing_specs, &source.column_specs, &path)?;
@@ -100,7 +100,7 @@ impl VTab for StReadMultiVTab {
                         // if it's the first file, use the spec as the base.
                         let _ = column_specs.insert(source.column_specs.clone());
                     }
-                    all_sources.push(source);
+                    sources.push(source);
                 }
             }
 
@@ -115,7 +115,7 @@ impl VTab for StReadMultiVTab {
             bind.add_result_column("layer", LogicalTypeId::Varchar.into());
 
             return Ok(GpkgBindData {
-                sources: all_sources,
+                sources,
                 column_specs,
             }
             .into());
@@ -207,43 +207,78 @@ impl VTab for StReadMultiVTab {
                     let mut row_idx: usize = 0;
 
                     for source in &bind_data_inner.sources {
-                        for row_data in &source.data {
+                        let conn = source.gpkg.conn.lock().unwrap();
+                        let mut stmt = conn.prepare(&format!(
+                            r#"SELECT {} FROM "{}""#,
+                            source
+                                .column_specs
+                                .iter()
+                                .map(|s| format!(r#""{}""#, s.name))
+                                .collect::<Vec<String>>()
+                                .join(","),
+                            source.layer_name
+                        ))?;
+                        stmt.query_map([], |row| {
                             // Insert filename
                             filename_vector.insert(row_idx, source.filename.as_str());
                             layer_name_vector.insert(row_idx, source.layer_name.as_str());
 
-                            // Insert other properties
                             for (col_idx, spec) in source.column_specs.iter().enumerate() {
-                                match &row_data[col_idx] {
-                                    rusqlite::types::Value::Null => {
-                                        property_vectors[col_idx].set_null(row_idx);
-                                    }
-                                    rusqlite::types::Value::Integer(v) => match spec.column_type {
-                                        ColumnType::Integer => {
-                                            property_vectors[col_idx].as_mut_slice()[row_idx] =
-                                                *v as i32;
+                                match &spec.column_type {
+                                    ColumnType::Integer => {
+                                        let val: Option<i64> = row.get(col_idx)?;
+                                        match val {
+                                            Some(v) => {
+                                                property_vectors[col_idx].as_mut_slice()[row_idx] =
+                                                    v as i32
+                                            }
+                                            None => property_vectors[col_idx].set_null(row_idx),
                                         }
-                                        ColumnType::Boolean => {
-                                            property_vectors[col_idx].as_mut_slice()[row_idx] =
-                                                *v != 0;
+                                    }
+                                    ColumnType::Double => {
+                                        let val: Option<f64> = row.get(col_idx)?;
+                                        match val {
+                                            Some(v) => {
+                                                property_vectors[col_idx].as_mut_slice()[row_idx] =
+                                                    v
+                                            }
+                                            None => property_vectors[col_idx].set_null(row_idx),
                                         }
-                                        _ => return Err("Type mismatch".into()),
-                                    },
-                                    rusqlite::types::Value::Real(v) => {
-                                        property_vectors[col_idx].as_mut_slice()[row_idx] = *v;
                                     }
-                                    rusqlite::types::Value::Text(v) => {
-                                        property_vectors[col_idx].insert(row_idx, v.as_str());
+                                    ColumnType::Varchar => {
+                                        let val: Option<String> = row.get(col_idx)?;
+                                        match val {
+                                            Some(v) => property_vectors[col_idx]
+                                                .insert(row_idx, v.as_str()),
+                                            None => property_vectors[col_idx].set_null(row_idx),
+                                        }
                                     }
-                                    rusqlite::types::Value::Blob(b) => {
-                                        property_vectors[col_idx]
-                                            .insert(row_idx, gpkg_geometry_to_wkb(b));
+                                    ColumnType::Boolean => {
+                                        let val: Option<bool> = row.get(col_idx)?;
+                                        match val {
+                                            Some(v) => {
+                                                property_vectors[col_idx].as_mut_slice()[row_idx] =
+                                                    v
+                                            }
+                                            None => property_vectors[col_idx].set_null(row_idx),
+                                        }
+                                    }
+                                    ColumnType::Geometry => {
+                                        let val: Option<Vec<u8>> = row.get(col_idx)?;
+                                        match val {
+                                            Some(v) => property_vectors[col_idx]
+                                                .insert(row_idx, gpkg_geometry_to_wkb(&v)),
+                                            None => property_vectors[col_idx].set_null(row_idx),
+                                        }
                                     }
                                 }
                             }
 
                             row_idx += 1;
-                        }
+
+                            Ok(())
+                        })?
+                        .collect::<Result<Vec<()>, _>>()?;
                     }
 
                     output.set_len(row_idx);

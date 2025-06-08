@@ -1,42 +1,75 @@
 use crate::types::{ColumnSpec, ColumnType};
 use rusqlite::{Connection, OpenFlags, Result};
-use std::path::Path;
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
 pub struct GpkgDataSource {
+    // TODO: Remove this as gpkg contains the filename
     pub filename: String,
     pub layer_name: String,
     pub column_specs: Vec<ColumnSpec>,
-    pub data: Vec<Vec<rusqlite::types::Value>>,
+    pub gpkg: Gpkg,
 }
 
+#[derive(Clone)]
 pub struct Gpkg {
-    conn: Connection,
+    pub conn: Arc<Mutex<Connection>>,
+    path: String,
+    pub layers: Vec<String>,
 }
 
 impl Gpkg {
-    pub(crate) fn new<P: AsRef<str>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
-        let conn = Connection::open_with_flags(path.as_ref(), OpenFlags::SQLITE_OPEN_READ_ONLY)?;
-        Ok(Self { conn })
-    }
+    pub(crate) fn new<P: AsRef<Path>>(
+        path: P,
+        layer_name: Option<String>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let conn = Connection::open_with_flags(
+            path.as_ref(),
+            OpenFlags::SQLITE_OPEN_READ_ONLY, // open as read only
+        )?;
 
-    pub(crate) fn list_layers(&self) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-        let mut stmt = self.conn.prepare("SELECT table_name FROM gpkg_contents")?;
+        let mut stmt = conn.prepare("SELECT table_name FROM gpkg_contents")?;
+        let layers = stmt
+            .query_map([], |row| row.get(0))?
+            .collect::<Result<Vec<String>, _>>()?;
+        drop(stmt);
 
-        let layers: Result<Vec<String>, rusqlite::Error> =
-            stmt.query_map([], |row| row.get(0))?.collect();
+        let path = path.as_ref().to_string_lossy().to_string();
+        if let Some(layer_name) = layer_name {
+            // If layer is specified, the data must contain the layer of the
+            // same name. Otherwise, it fails.
+            if !layers.contains(&layer_name) {
+                return Err(format!("No such layer '{layer_name}' in {path}",).into());
+            }
 
-        Ok(layers?)
+            Ok(Self {
+                conn: Arc::new(Mutex::new(conn)),
+                path,
+                layers: vec![layer_name],
+            })
+        } else {
+            // If layer is not specified, return all the layers
+            Ok(Self {
+                conn: Arc::new(Mutex::new(conn)),
+                path,
+                layers,
+            })
+        }
     }
 
     pub(crate) fn get_column_specs<T: AsRef<str>>(
         &self,
         table_name: T,
     ) -> Result<Vec<ColumnSpec>, Box<dyn std::error::Error>> {
+        let conn = self.conn.lock().unwrap();
+
         let query = format!(
             "SELECT name, type FROM pragma_table_info('{}') WHERE name != 'fid'",
             table_name.as_ref()
         );
-        let mut stmt = self.conn.prepare(&query)?;
+        let mut stmt = conn.prepare(&query)?;
 
         let column_specs = stmt.query_map([], |row| {
             let name: String = row.get(0)?;
@@ -67,89 +100,18 @@ impl Gpkg {
         Ok(result?)
     }
 
-    pub(crate) fn read_layer_data<P: AsRef<Path>>(
-        path: P,
-        layer_name: Option<&str>,
+    pub(crate) fn list_data_sources(
+        &self,
     ) -> Result<Vec<GpkgDataSource>, Box<dyn std::error::Error>> {
-        let gpkg = Self::new(path.as_ref().to_str().unwrap())?;
-        let filename = path.as_ref().to_string_lossy().into_owned();
-
-        let layers = if let Some(layer) = layer_name {
-            vec![layer.to_string()]
-        } else {
-            gpkg.list_layers()?
-        };
-
         let mut sources = Vec::new();
 
-        for layer in layers {
-            let column_specs = gpkg.get_column_specs(&layer)?;
-
-            // Build column list for SELECT
-            let column_names: Vec<String> = column_specs
-                .iter()
-                .map(|spec| format!("\"{}\"", spec.name))
-                .collect();
-            let columns_str = column_names.join(", ");
-
-            let query = format!("SELECT {} FROM \"{}\"", columns_str, layer);
-            let mut stmt = gpkg.conn.prepare(&query)?;
-
-            let mut data = Vec::new();
-            let rows = stmt.query_map([], |row| {
-                let mut row_data = Vec::new();
-                for (idx, spec) in column_specs.iter().enumerate() {
-                    let value = match spec.column_type {
-                        ColumnType::Integer => {
-                            let val: Option<i64> = row.get(idx)?;
-                            match val {
-                                Some(v) => rusqlite::types::Value::Integer(v),
-                                None => rusqlite::types::Value::Null,
-                            }
-                        }
-                        ColumnType::Double => {
-                            let val: Option<f64> = row.get(idx)?;
-                            match val {
-                                Some(v) => rusqlite::types::Value::Real(v),
-                                None => rusqlite::types::Value::Null,
-                            }
-                        }
-                        ColumnType::Varchar => {
-                            let val: Option<String> = row.get(idx)?;
-                            match val {
-                                Some(v) => rusqlite::types::Value::Text(v),
-                                None => rusqlite::types::Value::Null,
-                            }
-                        }
-                        ColumnType::Boolean => {
-                            let val: Option<bool> = row.get(idx)?;
-                            match val {
-                                Some(v) => rusqlite::types::Value::Integer(if v { 1 } else { 0 }),
-                                None => rusqlite::types::Value::Null,
-                            }
-                        }
-                        ColumnType::Geometry => {
-                            let val: Option<Vec<u8>> = row.get(idx)?;
-                            match val {
-                                Some(v) => rusqlite::types::Value::Blob(v),
-                                None => rusqlite::types::Value::Null,
-                            }
-                        }
-                    };
-                    row_data.push(value);
-                }
-                Ok(row_data)
-            })?;
-
-            for row in rows {
-                data.push(row?);
-            }
-
+        for layer in &self.layers {
+            let column_specs = self.get_column_specs(layer)?;
             sources.push(GpkgDataSource {
-                filename: filename.clone(),
-                layer_name: layer.clone(),
+                filename: self.path.clone(),
+                layer_name: layer.to_string(),
                 column_specs,
-                data,
+                gpkg: self.clone(),
             });
         }
 
@@ -178,24 +140,15 @@ mod tests {
     use crate::types::ColumnType;
 
     #[test]
-    fn test_list_layers() -> Result<(), Box<dyn std::error::Error>> {
-        let gpkg = super::Gpkg::new("./test/data/multi_layers.gpkg")?;
-        let layers = gpkg.list_layers()?;
-        assert_eq!(&layers, &["points2_point", "points_point"]);
-
-        Ok(())
-    }
-
-    #[test]
     fn test_get_column_specs() -> Result<(), Box<dyn std::error::Error>> {
-        let gpkg = super::Gpkg::new("./test/data/points.gpkg")?;
+        let gpkg = super::Gpkg::new("./test/data/points.gpkg", None)?;
         let layers = gpkg.get_column_specs("points")?;
 
         assert_eq!(layers.len(), 3);
         assert_eq!(&layers[0].name, "geom");
         assert_eq!(layers[0].column_type, ColumnType::Geometry);
         assert_eq!(&layers[1].name, "val1");
-        assert_eq!(layers[1].column_type, ColumnType::Double);
+        assert_eq!(layers[1].column_type, ColumnType::Integer);
         assert_eq!(&layers[2].name, "val2");
         assert_eq!(layers[2].column_type, ColumnType::Varchar);
 
