@@ -91,3 +91,7 @@ FROM ST_Read_Multi('test/data/*.gpkg', layer='points');
 │ POINT (111 222) │     6 │ d       │ test/data/points2.gpkg │ points  │
 └─────────────────┴───────┴─────────┴────────────────────────┴─────────┘
 ```
+
+### Shapefile
+
+Not Yet!
