@@ -54,23 +54,40 @@ Not Yet!
 ```sql
 -- load all layers
 SELECT * REPLACE (ST_GeomFromWkb(geom) as geom)
-FROM ST_Read_Multi('test/data/points*.gpkg');
+FROM ST_Read_Multi('test/data/*.gpkg');
 ```
 
 ```
-┌─────────────────┬───────┬─────────┬────────────────────────┐
-│      geom       │ val1  │  val2   │        filename        │
-│    geometry     │ int32 │ varchar │        varchar         │
-├─────────────────┼───────┼─────────┼────────────────────────┤
-│ POINT (1 2)     │     1 │ a       │ test/data/points.gpkg  │
-│ POINT (10 20)   │     2 │ b       │ test/data/points.gpkg  │
-│ POINT (100 200) │     5 │ c       │ test/data/points2.gpkg │
-│ POINT (111 222) │     6 │ d       │ test/data/points2.gpkg │
-└─────────────────┴───────┴─────────┴────────────────────────┘
+┌─────────────────┬───────┬─────────┬─────────────────────────────┬───────────────┐
+│      geom       │ val1  │  val2   │          filename           │     layer     │
+│    geometry     │ int32 │ varchar │           varchar           │    varchar    │
+├─────────────────┼───────┼─────────┼─────────────────────────────┼───────────────┤
+│ POINT (100 200) │     5 │ c       │ test/data/multi_layers.gpkg │ points2_point │
+│ POINT (111 222) │     6 │ d       │ test/data/multi_layers.gpkg │ points2_point │
+│ POINT (1 2)     │     1 │ a       │ test/data/multi_layers.gpkg │ points_point  │
+│ POINT (10 20)   │     2 │ b       │ test/data/multi_layers.gpkg │ points_point  │
+│ POINT (1 2)     │     1 │ a       │ test/data/points.gpkg       │ points        │
+│ POINT (10 20)   │     2 │ b       │ test/data/points.gpkg       │ points        │
+│ POINT (100 200) │     5 │ c       │ test/data/points2.gpkg      │ points        │
+│ POINT (111 222) │     6 │ d       │ test/data/points2.gpkg      │ points        │
+└─────────────────┴───────┴─────────┴─────────────────────────────┴───────────────┘
 ```
 
-```
+```sql
 -- load specific layers
 SELECT * REPLACE (ST_GeomFromWkb(geom) as geom)
-FROM ST_Read_Multi('test/data/*.gpkg', layer='layer_1');
+FROM ST_Read_Multi('test/data/*.gpkg', layer='points');
+```
+
+```
+[WARN] No such layer 'points' in test/data/multi_layers.gpkg
+┌─────────────────┬───────┬─────────┬────────────────────────┬─────────┐
+│      geom       │ val1  │  val2   │        filename        │  layer  │
+│    geometry     │ int32 │ varchar │        varchar         │ varchar │
+├─────────────────┼───────┼─────────┼────────────────────────┼─────────┤
+│ POINT (1 2)     │     1 │ a       │ test/data/points.gpkg  │ points  │
+│ POINT (10 20)   │     2 │ b       │ test/data/points.gpkg  │ points  │
+│ POINT (100 200) │     5 │ c       │ test/data/points2.gpkg │ points  │
+│ POINT (111 222) │     6 │ d       │ test/data/points2.gpkg │ points  │
+└─────────────────┴───────┴─────────┴────────────────────────┴─────────┘
 ```

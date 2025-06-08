@@ -45,7 +45,7 @@ impl VTab for StReadMultiVTab {
         let paths: Vec<PathBuf> = glob(&expanded_pattern)?.collect::<Result<_, _>>()?;
 
         if paths.is_empty() {
-            return Err("Doesn't match to any file".into());
+            return Err(format!("'{path_pattern}' doesn't match to any file").into());
         }
 
         if paths.iter().all(is_geojson) {
@@ -104,7 +104,7 @@ impl VTab for StReadMultiVTab {
                 }
             }
 
-            let column_specs = column_specs.unwrap();
+            let column_specs = column_specs.ok_or("No layers are found")?;
 
             for spec in column_specs.iter() {
                 bind.add_result_column(&spec.name, spec.column_type.into());

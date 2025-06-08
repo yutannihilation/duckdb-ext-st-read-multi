@@ -38,16 +38,17 @@ impl Gpkg {
 
         let path = path.as_ref().to_string_lossy().to_string();
         if let Some(layer_name) = layer_name {
-            // If layer is specified, the data must contain the layer of the
-            // same name. Otherwise, it fails.
-            if !layers.contains(&layer_name) {
-                return Err(format!("No such layer '{layer_name}' in {path}",).into());
-            }
+            let layers = if !layers.contains(&layer_name) {
+                eprintln!("[WARN] No such layer '{layer_name}' in {path}",);
+                vec![]
+            } else {
+                vec![layer_name]
+            };
 
             Ok(Self {
                 conn: Arc::new(Mutex::new(conn)),
                 path,
-                layers: vec![layer_name],
+                layers,
             })
         } else {
             // If layer is not specified, return all the layers
