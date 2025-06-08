@@ -40,9 +40,6 @@ impl VTab for StReadMultiVTab {
     type BindData = StReadMultiBindData;
 
     fn bind(bind: &BindInfo) -> Result<Self::BindData, Box<dyn std::error::Error>> {
-        // geometry column must exist
-        bind.add_result_column("geometry", LogicalTypeId::Blob.into());
-
         let path_pattern = bind.get_parameter(0).to_string();
         let expanded_pattern = expand_tilde(&path_pattern);
         let paths: Vec<PathBuf> = glob(&expanded_pattern)?.collect::<Result<_, _>>()?;
@@ -70,6 +67,7 @@ impl VTab for StReadMultiVTab {
 
             let column_specs = column_specs.unwrap();
 
+            bind.add_result_column("geometry", LogicalTypeId::Blob.into());
             for spec in column_specs.iter() {
                 bind.add_result_column(&spec.name, spec.column_type.into());
             }
@@ -108,11 +106,8 @@ impl VTab for StReadMultiVTab {
 
             let column_specs = column_specs.unwrap();
 
-            // Add columns excluding geometry (which is already added at the top)
             for spec in column_specs.iter() {
-                if spec.column_type != ColumnType::Geometry {
-                    bind.add_result_column(&spec.name, spec.column_type.into());
-                }
+                bind.add_result_column(&spec.name, spec.column_type.into());
             }
 
             // filename column to track source file
@@ -201,76 +196,47 @@ impl VTab for StReadMultiVTab {
                     output.set_len(row_idx);
                 }
                 StReadMultiBindData::Gpkg(bind_data_inner) => {
-                    let mut geom_vector = output.flat_vector(0);
-                    let mut property_vectors: Vec<FlatVector> = Vec::new();
-                    let mut property_indices: Vec<usize> = Vec::new();
+                    let n_props = bind_data_inner.column_specs.len();
+                    let mut property_vectors: Vec<FlatVector> =
+                        (0..n_props).map(|i| output.flat_vector(i)).collect();
 
-                    // Create vectors only for non-geometry columns
-                    let mut vec_idx = 1;
-                    for (idx, spec) in bind_data_inner.column_specs.iter().enumerate() {
-                        if spec.column_type != ColumnType::Geometry {
-                            property_vectors.push(output.flat_vector(vec_idx));
-                            property_indices.push(idx);
-                            vec_idx += 1;
-                        }
-                    }
-                    let filename_vector = output.flat_vector(vec_idx);
+                    let filename_vector = output.flat_vector(n_props);
 
                     let mut row_idx: usize = 0;
 
                     for source in &bind_data_inner.sources {
                         for row_data in &source.data {
-                            // Find geometry column index
-                            let geom_idx = source
-                                .column_specs
-                                .iter()
-                                .position(|spec| spec.column_type == ColumnType::Geometry)
-                                .ok_or("No geometry column found")?;
-
-                            // Insert geometry
-                            if let rusqlite::types::Value::Blob(wkb) = &row_data[geom_idx] {
-                                geom_vector.insert(row_idx, gpkg_geometry_to_wkb(wkb));
-                            } else {
-                                geom_vector.set_null(row_idx);
-                            }
-
                             // Insert filename
                             filename_vector.insert(row_idx, source.filename.as_str());
 
                             // Insert other properties
-                            let mut prop_vec_idx = 0;
                             for (col_idx, spec) in source.column_specs.iter().enumerate() {
-                                if spec.column_type == ColumnType::Geometry {
-                                    continue;
-                                }
-
                                 match &row_data[col_idx] {
                                     rusqlite::types::Value::Null => {
-                                        property_vectors[prop_vec_idx].set_null(row_idx);
+                                        property_vectors[col_idx].set_null(row_idx);
                                     }
                                     rusqlite::types::Value::Integer(v) => match spec.column_type {
                                         ColumnType::Integer => {
-                                            property_vectors[prop_vec_idx].as_mut_slice()
-                                                [row_idx] = *v as i32;
+                                            property_vectors[col_idx].as_mut_slice()[row_idx] =
+                                                *v as i32;
                                         }
                                         ColumnType::Boolean => {
-                                            property_vectors[prop_vec_idx].as_mut_slice()
-                                                [row_idx] = *v != 0;
+                                            property_vectors[col_idx].as_mut_slice()[row_idx] =
+                                                *v != 0;
                                         }
                                         _ => return Err("Type mismatch".into()),
                                     },
                                     rusqlite::types::Value::Real(v) => {
-                                        property_vectors[prop_vec_idx].as_mut_slice()[row_idx] = *v;
+                                        property_vectors[col_idx].as_mut_slice()[row_idx] = *v;
                                     }
                                     rusqlite::types::Value::Text(v) => {
-                                        property_vectors[prop_vec_idx].insert(row_idx, v.as_str());
+                                        property_vectors[col_idx].insert(row_idx, v.as_str());
                                     }
-                                    rusqlite::types::Value::Blob(_) => {
-                                        // Should only be geometry, which we already handled
-                                        return Err("Unexpected blob in non-geometry column".into());
+                                    rusqlite::types::Value::Blob(b) => {
+                                        property_vectors[col_idx]
+                                            .insert(row_idx, gpkg_geometry_to_wkb(b));
                                     }
                                 }
-                                prop_vec_idx += 1;
                             }
 
                             row_idx += 1;

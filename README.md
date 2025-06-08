@@ -53,13 +53,13 @@ Not Yet!
 
 ```sql
 -- load all layers
-SELECT * REPLACE (ST_GeomFromWkb(geometry) as geometry)
+SELECT * REPLACE (ST_GeomFromWkb(geom) as geom)
 FROM ST_Read_Multi('test/data/points*.gpkg');
 ```
 
 ```
 ┌─────────────────┬───────┬─────────┬────────────────────────┐
-│    geometry     │ val1  │  val2   │        filename        │
+│      geom       │ val1  │  val2   │        filename        │
 │    geometry     │ int32 │ varchar │        varchar         │
 ├─────────────────┼───────┼─────────┼────────────────────────┤
 │ POINT (1 2)     │     1 │ a       │ test/data/points.gpkg  │
@@ -71,6 +71,6 @@ FROM ST_Read_Multi('test/data/points*.gpkg');
 
 ```
 -- load specific layers
-SELECT * REPLACE (ST_GeomFromWkb(geometry) as geometry)
+SELECT * REPLACE (ST_GeomFromWkb(geom) as geom)
 FROM ST_Read_Multi('test/data/*.gpkg', layer='layer_1');
 ```

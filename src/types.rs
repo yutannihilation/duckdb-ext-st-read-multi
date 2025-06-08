@@ -44,7 +44,7 @@ impl From<ColumnType> for LogicalTypeHandle {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[repr(C)]
 pub struct ColumnSpec {
     pub name: String,
