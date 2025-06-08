@@ -1,5 +1,5 @@
 use crate::types::{ColumnSpec, ColumnType};
-use rusqlite::{Connection, Result};
+use rusqlite::{Connection, OpenFlags, Result};
 use std::path::Path;
 
 pub struct GpkgDataSource {
@@ -15,7 +15,7 @@ pub struct Gpkg {
 
 impl Gpkg {
     pub(crate) fn new<P: AsRef<str>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
-        let conn = Connection::open(path.as_ref())?;
+        let conn = Connection::open_with_flags(path.as_ref(), OpenFlags::SQLITE_OPEN_READ_ONLY)?;
         Ok(Self { conn })
     }
 
