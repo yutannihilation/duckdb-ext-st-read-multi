@@ -84,13 +84,13 @@ impl VTab for StReadMultiVTab {
 
         if paths.iter().all(is_gpkg) {
             // Check if user specified a layer parameter
-            let layer_name = bind.get_named_parameter("layer").map(|x| x.to_string());
+            let layer_name = bind.get_named_parameter("layer");
 
             let mut all_sources: Vec<GpkgDataSource> = Vec::new();
             let mut column_specs: Option<Vec<ColumnSpec>> = None;
 
             for path in paths {
-                let sources = Gpkg::read_layer_data(&path, layer_name.as_deref())?;
+                let sources = Gpkg::read_layer_data(&path, None)?;
 
                 for source in sources {
                     if let Some(existing_specs) = &column_specs {
@@ -110,8 +110,9 @@ impl VTab for StReadMultiVTab {
                 bind.add_result_column(&spec.name, spec.column_type.into());
             }
 
-            // filename column to track source file
+            // filename and layer column to track source
             bind.add_result_column("filename", LogicalTypeId::Varchar.into());
+            bind.add_result_column("layer", LogicalTypeId::Varchar.into());
 
             return Ok(GpkgBindData {
                 sources: all_sources,
@@ -201,6 +202,7 @@ impl VTab for StReadMultiVTab {
                         (0..n_props).map(|i| output.flat_vector(i)).collect();
 
                     let filename_vector = output.flat_vector(n_props);
+                    let layer_name_vector = output.flat_vector(n_props + 1);
 
                     let mut row_idx: usize = 0;
 
@@ -208,6 +210,7 @@ impl VTab for StReadMultiVTab {
                         for row_data in &source.data {
                             // Insert filename
                             filename_vector.insert(row_idx, source.filename.as_str());
+                            layer_name_vector.insert(row_idx, source.layer_name.as_str());
 
                             // Insert other properties
                             for (col_idx, spec) in source.column_specs.iter().enumerate() {
