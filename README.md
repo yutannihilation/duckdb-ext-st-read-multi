@@ -11,12 +11,13 @@ This extension is to import multiple files e.g. `ST_Read_Multi('path/to/*.geojso
 
 ## Limitations
 
-- `ST_Read_Multi` supports only a few numbers of file formats compared to `ST_Read`.
+- Only GeoJSON and GeoPackages are supported.
 - `ST_Read_Multi` is highly inefficient compared to `ST_Read`; this eagerly reads
   all the data and doesn't support pushdown, spatial index, etc.
-- `ST_Read_Multi` returns the geometry column as WKB, but the type is `BLOB`, not
+- The returned geometry column is actually in WKB, but the type is `BLOB`, not
   `GEOMETRY`. This is because DuckDB doesn't allow extensions to use another
   extension's type. You need to explicitly convert it by `ST_GeomFromWkb`.
+- Metadata like bbox or CRS are just ignored.
 
 ## Usages
 
