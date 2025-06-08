@@ -5,6 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+#[repr(C)]
 pub struct GpkgDataSource {
     // TODO: Remove this as gpkg contains the filename
     pub filename: String,

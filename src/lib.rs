@@ -48,6 +48,10 @@ impl VTab for StReadMultiVTab {
             return Err(format!("'{path_pattern}' doesn't match to any file").into());
         }
 
+        // ==================== //
+        //     GeoJSON          //
+        // ==================== //
+
         if paths.iter().all(is_geojson) {
             let mut sources: Vec<GeoJsonDataSource> = Vec::new();
             let mut column_specs: Option<Vec<ColumnSpec>> = None;
@@ -81,6 +85,10 @@ impl VTab for StReadMultiVTab {
             }
             .into());
         }
+
+        // ==================== //
+        //     Gpkg             //
+        // ==================== //
 
         if paths.iter().all(is_gpkg) {
             // Check if user specified a layer parameter
@@ -140,6 +148,9 @@ impl VTab for StReadMultiVTab {
             output.set_len(0);
         } else {
             match bind_data {
+                // ==================== //
+                //     GeoJSON          //
+                // ==================== //
                 StReadMultiBindData::GeoJson(bind_data_inner) => {
                     let geom_vector = output.flat_vector(0);
                     let n_props = bind_data_inner.column_specs.len();
@@ -196,6 +207,10 @@ impl VTab for StReadMultiVTab {
 
                     output.set_len(row_idx);
                 }
+
+                // ==================== //
+                //     Gpkg             //
+                // ==================== //
                 StReadMultiBindData::Gpkg(bind_data_inner) => {
                     let n_props = bind_data_inner.column_specs.len();
                     let mut property_vectors: Vec<FlatVector> =
