@@ -6,14 +6,15 @@ use crate::types::{ColumnSpec, ColumnType};
 
 #[repr(C)]
 pub struct GeoJsonDataSource {
-    pub feature_collection: FeatureCollection,
+    pub features: Vec<Feature>,
     pub filename: String,
 }
 
 impl GeoJsonDataSource {
-    pub(crate) fn parse<P: AsRef<Path>>(
+    // For simplicty, split to the size of 2048.
+    pub(crate) fn parse_and_split<P: AsRef<Path>>(
         path: P,
-    ) -> Result<(Self, Vec<ColumnSpec>), Box<dyn std::error::Error>> {
+    ) -> Result<(Vec<Self>, Vec<ColumnSpec>), Box<dyn std::error::Error>> {
         let path = path.as_ref();
         let mut column_specs: Vec<ColumnSpec> = Vec::new();
 
@@ -49,12 +50,17 @@ impl GeoJsonDataSource {
                 // Sort by name for consistent ordering
                 column_specs.sort_by(|a, b| a.name.cmp(&b.name));
 
-                let data_source = GeoJsonDataSource {
-                    feature_collection,
-                    filename: path.to_string_lossy().into_owned(),
-                };
+                let filename = path.to_string_lossy().into_owned();
+                let data_sources = feature_collection
+                    .features
+                    .chunks(2048)
+                    .map(|features| GeoJsonDataSource {
+                        features: features.to_vec(),
+                        filename: filename.clone(),
+                    })
+                    .collect();
 
-                Ok((data_source, column_specs))
+                Ok((data_sources, column_specs))
             }
             _ => Err(format!(
                 "GeoJSON file must be FeatureCollection: {}",
