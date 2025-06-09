@@ -245,14 +245,15 @@ impl VTab for StReadMultiVTab {
                     let mut conn = source.gpkg.conn.lock().unwrap();
 
                     // if the connection is already done due to a race condition, do nothing.
-                    if conn.done {
+                    if conn.finished_layers.contains(&source.layer_name) {
                         // try next data source
                         cur_source_idx += 1;
+                        conn.offset = 0;
 
                         continue;
                     }
 
-                    let done = conn.fetch_rows(&source.sql, |row| {
+                    let done = conn.fetch_rows(&source.sql, &source.layer_name, |row| {
                         // Insert filename
                         filename_vector.insert(row_idx, source.gpkg.path.as_str());
                         layer_name_vector.insert(row_idx, source.layer_name.as_str());
@@ -321,6 +322,7 @@ impl VTab for StReadMultiVTab {
                             Ordering::SeqCst,
                             Ordering::Relaxed,
                         );
+                        conn.offset = 0;
 
                         // The result must contain at least one row. So, retry.
                         if row_idx == 0 {

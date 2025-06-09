@@ -27,7 +27,7 @@ pub struct GpkgConnection {
     // But, it seems it's not possible due to the lifetime requirement.
     pub conn: Connection,
     pub offset: usize,
-    pub done: bool,
+    pub finished_layers: Vec<String>,
 }
 
 impl GpkgConnection {
@@ -35,16 +35,16 @@ impl GpkgConnection {
         Self {
             conn,
             offset: 0,
-            done: false,
+            finished_layers: vec![],
         }
     }
 
     // If all the rows are fetched, return true
-    pub fn fetch_rows<F>(&mut self, sql: &str, f: F) -> Result<bool>
+    pub fn fetch_rows<F>(&mut self, sql: &str, layer_name: &String, f: F) -> Result<bool>
     where
         F: FnMut(&Row<'_>) -> Result<()>,
     {
-        if self.done {
+        if self.finished_layers.contains(layer_name) {
             return Ok(true);
         }
 
@@ -58,10 +58,11 @@ impl GpkgConnection {
         self.offset += row_count;
 
         if row_count != VECTOR_SIZE {
-            self.done = true;
+            self.finished_layers.push(layer_name.clone());
+            Ok(true)
+        } else {
+            Ok(false)
         }
-
-        Ok(self.done)
     }
 }
 
