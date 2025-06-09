@@ -32,6 +32,10 @@ use crate::{
     utils::{expand_tilde, is_geojson, is_gpkg, validate_schema},
 };
 
+// The data chunk size. This can be obtained via libduckdb_sys::duckdb_vector_size(),
+// but use a fixed value here.
+const VECTOR_SIZE: usize = 2048;
+
 struct StReadMultiVTab;
 
 impl VTab for StReadMultiVTab {

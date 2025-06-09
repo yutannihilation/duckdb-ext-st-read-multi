@@ -1,6 +1,7 @@
 use duckdb::core::LogicalTypeHandle;
 use duckdb::core::LogicalTypeId;
 use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicUsize;
 
 use crate::geojson::GeoJsonDataSource;
 use crate::gpkg::GpkgDataSource;
@@ -84,4 +85,5 @@ impl From<GpkgBindData> for StReadMultiBindData {
 #[repr(C)]
 pub struct StReadMultiInitData {
     pub done: AtomicBool,
+    // pub cur_source_idx: AtomicUsize,
 }
