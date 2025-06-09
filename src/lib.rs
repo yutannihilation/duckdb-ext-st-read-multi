@@ -221,7 +221,7 @@ impl VTab for StReadMultiVTab {
             // ==================== //
             StReadMultiBindData::Gpkg(bind_data_inner) => {
                 // cur_source_idx is acquired and incremented atomically to prevent race conditions.
-                let cur_source_idx = init_data.cur_source_idx.fetch_add(1, Ordering::SeqCst);
+                let mut cur_source_idx = init_data.cur_source_idx.fetch_add(1, Ordering::SeqCst);
 
                 // If there's no remaining data source, tell DuckDB it's over.
                 if cur_source_idx >= bind_data_inner.sources.len() {

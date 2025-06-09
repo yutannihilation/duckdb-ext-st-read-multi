@@ -1,8 +1,11 @@
 use std::{fs::File, path::Path};
 
-use geojson::{Feature, FeatureCollection};
+use geojson::Feature;
 
-use crate::types::{ColumnSpec, ColumnType};
+use crate::{
+    types::{ColumnSpec, ColumnType},
+    VECTOR_SIZE,
+};
 
 #[repr(C)]
 pub struct GeoJsonDataSource {
