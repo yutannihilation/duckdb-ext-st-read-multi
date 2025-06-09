@@ -238,7 +238,7 @@ impl VTab for StReadMultiVTab {
                         ))?;
                         stmt.query_map([], |row| {
                             // Insert filename
-                            filename_vector.insert(row_idx, source.filename.as_str());
+                            filename_vector.insert(row_idx, source.gpkg.path.as_str());
                             layer_name_vector.insert(row_idx, source.layer_name.as_str());
 
                             for (col_idx, spec) in source.column_specs.iter().enumerate() {

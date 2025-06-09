@@ -7,8 +7,6 @@ use std::{
 
 #[repr(C)]
 pub struct GpkgDataSource {
-    // TODO: Remove this as gpkg contains the filename
-    pub filename: String,
     pub layer_name: String,
     pub column_specs: Vec<ColumnSpec>,
     pub gpkg: Gpkg,
@@ -17,7 +15,7 @@ pub struct GpkgDataSource {
 #[derive(Clone)]
 pub struct Gpkg {
     pub conn: Arc<Mutex<Connection>>,
-    path: String,
+    pub path: String,
     pub layers: Vec<String>,
 }
 
@@ -110,7 +108,6 @@ impl Gpkg {
         for layer in &self.layers {
             let column_specs = self.get_column_specs(layer)?;
             sources.push(GpkgDataSource {
-                filename: self.path.clone(),
                 layer_name: layer.to_string(),
                 column_specs,
                 gpkg: self.clone(),
