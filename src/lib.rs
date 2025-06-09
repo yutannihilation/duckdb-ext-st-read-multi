@@ -19,7 +19,7 @@ use libduckdb_sys as ffi;
 use std::{
     error::Error,
     path::PathBuf,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
 use crate::{
@@ -34,7 +34,7 @@ use crate::{
 
 // The data chunk size. This can be obtained via libduckdb_sys::duckdb_vector_size(),
 // but use a fixed value here.
-const VECTOR_SIZE: usize = 2048;
+pub(crate) const VECTOR_SIZE: usize = 2048;
 
 struct StReadMultiVTab;
 
@@ -138,6 +138,7 @@ impl VTab for StReadMultiVTab {
     fn init(_: &InitInfo) -> Result<Self::InitData, Box<dyn std::error::Error>> {
         Ok(StReadMultiInitData {
             done: AtomicBool::new(false),
+            cur_source_idx: AtomicUsize::new(0),
         })
     }
 
@@ -147,162 +148,187 @@ impl VTab for StReadMultiVTab {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let init_data = func.get_init_data();
         let bind_data = func.get_bind_data();
-        if init_data.done.swap(true, Ordering::Relaxed) {
-            output.set_len(0);
-        } else {
-            match bind_data {
-                // ==================== //
-                //     GeoJSON          //
-                // ==================== //
-                StReadMultiBindData::GeoJson(bind_data_inner) => {
-                    let geom_vector = output.flat_vector(0);
-                    let n_props = bind_data_inner.column_specs.len();
-                    let mut property_vectors: Vec<FlatVector> =
-                        (0..n_props).map(|i| output.flat_vector(i + 1)).collect();
-                    let filename_vector = output.flat_vector(n_props + 1);
 
-                    let mut row_idx: usize = 0;
-                    let mut wkb_converter = WkbConverter::new();
-                    for source in &bind_data_inner.sources {
-                        let fc = &source.feature_collection;
-                        for f in &fc.features {
-                            let wkb_data = wkb_converter.convert(f)?;
-                            geom_vector.insert(row_idx, wkb_data);
-                            filename_vector.insert(row_idx, source.filename.as_str());
+        // cur_source_idx is acquired here and gets incremented later, so this isn't atomic.
+        // But, that's fine because the source is protected by Mutex.
+        let mut cur_source_idx = init_data.cur_source_idx.load(Ordering::Acquire);
 
-                            if let Some(properties) = &f.properties {
-                                for (prop_idx, spec) in
-                                    bind_data_inner.column_specs.iter().enumerate()
-                                {
-                                    let val = properties.get(&spec.name);
+        match bind_data {
+            // ==================== //
+            //     GeoJSON          //
+            // ==================== //
+            StReadMultiBindData::GeoJson(bind_data_inner) => {
+                let geom_vector = output.flat_vector(0);
+                let n_props = bind_data_inner.column_specs.len();
+                let mut property_vectors: Vec<FlatVector> =
+                    (0..n_props).map(|i| output.flat_vector(i + 1)).collect();
+                let filename_vector = output.flat_vector(n_props + 1);
 
-                                    match val {
-                                        Some(v) if !v.is_null() => {
-                                            match spec.column_type {
-                                                // Varchar needs insert()
-                                                ColumnType::Varchar => {
-                                                    property_vectors[prop_idx]
-                                                        .insert(row_idx, v.as_str().unwrap());
-                                                }
-                                                ColumnType::Boolean => {
-                                                    property_vectors[prop_idx].as_mut_slice()
-                                                        [row_idx] = v.as_bool().unwrap();
-                                                }
-                                                ColumnType::Double => {
-                                                    property_vectors[prop_idx].as_mut_slice()
-                                                        [row_idx] = v.as_f64().unwrap();
-                                                }
-                                                // JSON doesn't have integer type.
-                                                _ => unreachable!(),
+                let mut row_idx: usize = 0;
+                let mut wkb_converter = WkbConverter::new();
+                for source in &bind_data_inner.sources {
+                    let fc = &source.feature_collection;
+                    for f in &fc.features {
+                        let wkb_data = wkb_converter.convert(f)?;
+                        geom_vector.insert(row_idx, wkb_data);
+                        filename_vector.insert(row_idx, source.filename.as_str());
+
+                        if let Some(properties) = &f.properties {
+                            for (prop_idx, spec) in bind_data_inner.column_specs.iter().enumerate()
+                            {
+                                let val = properties.get(&spec.name);
+
+                                match val {
+                                    Some(v) if !v.is_null() => {
+                                        match spec.column_type {
+                                            // Varchar needs insert()
+                                            ColumnType::Varchar => {
+                                                property_vectors[prop_idx]
+                                                    .insert(row_idx, v.as_str().unwrap());
                                             }
+                                            ColumnType::Boolean => {
+                                                property_vectors[prop_idx].as_mut_slice()
+                                                    [row_idx] = v.as_bool().unwrap();
+                                            }
+                                            ColumnType::Double => {
+                                                property_vectors[prop_idx].as_mut_slice()
+                                                    [row_idx] = v.as_f64().unwrap();
+                                            }
+                                            // JSON doesn't have integer type.
+                                            _ => unreachable!(),
                                         }
-                                        _ => {
-                                            // Handle NULL or missing values
-                                            property_vectors[prop_idx].set_null(row_idx);
-                                        }
+                                    }
+                                    _ => {
+                                        // Handle NULL or missing values
+                                        property_vectors[prop_idx].set_null(row_idx);
                                     }
                                 }
                             }
+                        }
 
-                            row_idx += 1;
+                        row_idx += 1;
+                    }
+                }
+
+                output.set_len(row_idx);
+            }
+
+            // ==================== //
+            //     Gpkg             //
+            // ==================== //
+            StReadMultiBindData::Gpkg(bind_data_inner) => {
+                let n_props = bind_data_inner.column_specs.len();
+                let mut property_vectors: Vec<FlatVector> =
+                    (0..n_props).map(|i| output.flat_vector(i)).collect();
+
+                let filename_vector = output.flat_vector(n_props);
+                let layer_name_vector = output.flat_vector(n_props + 1);
+
+                let mut row_idx: usize = 0;
+
+                // If there's no remaining data source, tell DuckDB it's over.
+                if cur_source_idx >= bind_data_inner.sources.len() {
+                    output.set_len(0);
+                    return Ok(());
+                }
+
+                // Note: This for loop is a bit tricky. This is necessary to let this function
+                // return non-empty result, otherwise DuckDB would assume the query is done.
+                for source in &bind_data_inner.sources[cur_source_idx..] {
+                    let mut conn = source.gpkg.conn.lock().unwrap();
+
+                    // if the connection is already done due to a race condition, do nothing.
+                    if conn.done {
+                        // try next data source
+                        cur_source_idx += 1;
+
+                        continue;
+                    }
+
+                    let done = conn.fetch_rows(&source.sql, |row| {
+                        // Insert filename
+                        filename_vector.insert(row_idx, source.gpkg.path.as_str());
+                        layer_name_vector.insert(row_idx, source.layer_name.as_str());
+
+                        for (col_idx, spec) in source.column_specs.iter().enumerate() {
+                            match &spec.column_type {
+                                ColumnType::Integer => {
+                                    let val: Option<i64> = row.get(col_idx)?;
+                                    match val {
+                                        Some(v) => {
+                                            property_vectors[col_idx].as_mut_slice()[row_idx] =
+                                                v as i32
+                                        }
+                                        None => property_vectors[col_idx].set_null(row_idx),
+                                    }
+                                }
+                                ColumnType::Double => {
+                                    let val: Option<f64> = row.get(col_idx)?;
+                                    match val {
+                                        Some(v) => {
+                                            property_vectors[col_idx].as_mut_slice()[row_idx] = v
+                                        }
+                                        None => property_vectors[col_idx].set_null(row_idx),
+                                    }
+                                }
+                                ColumnType::Varchar => {
+                                    let val: Option<String> = row.get(col_idx)?;
+                                    match val {
+                                        Some(v) => {
+                                            property_vectors[col_idx].insert(row_idx, v.as_str())
+                                        }
+                                        None => property_vectors[col_idx].set_null(row_idx),
+                                    }
+                                }
+                                ColumnType::Boolean => {
+                                    let val: Option<bool> = row.get(col_idx)?;
+                                    match val {
+                                        Some(v) => {
+                                            property_vectors[col_idx].as_mut_slice()[row_idx] = v
+                                        }
+                                        None => property_vectors[col_idx].set_null(row_idx),
+                                    }
+                                }
+                                ColumnType::Geometry => {
+                                    let val: Option<Vec<u8>> = row.get(col_idx)?;
+                                    match val {
+                                        Some(v) => property_vectors[col_idx]
+                                            .insert(row_idx, gpkg_geometry_to_wkb(&v)),
+                                        None => property_vectors[col_idx].set_null(row_idx),
+                                    }
+                                }
+                            }
+                        }
+
+                        row_idx += 1;
+
+                        Ok(())
+                    })?;
+
+                    if done {
+                        // TODO: probably, this can be just fetch_add() if I
+                        // correctly reject race conditions at this point.
+                        let _ = init_data.cur_source_idx.compare_exchange(
+                            cur_source_idx,
+                            cur_source_idx + 1,
+                            Ordering::SeqCst,
+                            Ordering::Relaxed,
+                        );
+
+                        // The result must contain at least one row. So, retry.
+                        if row_idx == 0 {
+                            cur_source_idx += 1;
+                            continue;
                         }
                     }
 
+                    // return result and break this loop.
                     output.set_len(row_idx);
-                }
-
-                // ==================== //
-                //     Gpkg             //
-                // ==================== //
-                StReadMultiBindData::Gpkg(bind_data_inner) => {
-                    let n_props = bind_data_inner.column_specs.len();
-                    let mut property_vectors: Vec<FlatVector> =
-                        (0..n_props).map(|i| output.flat_vector(i)).collect();
-
-                    let filename_vector = output.flat_vector(n_props);
-                    let layer_name_vector = output.flat_vector(n_props + 1);
-
-                    let mut row_idx: usize = 0;
-
-                    for source in &bind_data_inner.sources {
-                        let conn = source.gpkg.conn.lock().unwrap();
-                        let mut stmt = conn.prepare(&format!(
-                            r#"SELECT {} FROM "{}""#,
-                            source
-                                .column_specs
-                                .iter()
-                                .map(|s| format!(r#""{}""#, s.name))
-                                .collect::<Vec<String>>()
-                                .join(","),
-                            source.layer_name
-                        ))?;
-                        stmt.query_map([], |row| {
-                            // Insert filename
-                            filename_vector.insert(row_idx, source.gpkg.path.as_str());
-                            layer_name_vector.insert(row_idx, source.layer_name.as_str());
-
-                            for (col_idx, spec) in source.column_specs.iter().enumerate() {
-                                match &spec.column_type {
-                                    ColumnType::Integer => {
-                                        let val: Option<i64> = row.get(col_idx)?;
-                                        match val {
-                                            Some(v) => {
-                                                property_vectors[col_idx].as_mut_slice()[row_idx] =
-                                                    v as i32
-                                            }
-                                            None => property_vectors[col_idx].set_null(row_idx),
-                                        }
-                                    }
-                                    ColumnType::Double => {
-                                        let val: Option<f64> = row.get(col_idx)?;
-                                        match val {
-                                            Some(v) => {
-                                                property_vectors[col_idx].as_mut_slice()[row_idx] =
-                                                    v
-                                            }
-                                            None => property_vectors[col_idx].set_null(row_idx),
-                                        }
-                                    }
-                                    ColumnType::Varchar => {
-                                        let val: Option<String> = row.get(col_idx)?;
-                                        match val {
-                                            Some(v) => property_vectors[col_idx]
-                                                .insert(row_idx, v.as_str()),
-                                            None => property_vectors[col_idx].set_null(row_idx),
-                                        }
-                                    }
-                                    ColumnType::Boolean => {
-                                        let val: Option<bool> = row.get(col_idx)?;
-                                        match val {
-                                            Some(v) => {
-                                                property_vectors[col_idx].as_mut_slice()[row_idx] =
-                                                    v
-                                            }
-                                            None => property_vectors[col_idx].set_null(row_idx),
-                                        }
-                                    }
-                                    ColumnType::Geometry => {
-                                        let val: Option<Vec<u8>> = row.get(col_idx)?;
-                                        match val {
-                                            Some(v) => property_vectors[col_idx]
-                                                .insert(row_idx, gpkg_geometry_to_wkb(&v)),
-                                            None => property_vectors[col_idx].set_null(row_idx),
-                                        }
-                                    }
-                                }
-                            }
-
-                            row_idx += 1;
-
-                            Ok(())
-                        })?
-                        .collect::<Result<Vec<()>, _>>()?;
-                    }
-
-                    output.set_len(row_idx);
+                    return Ok(());
                 }
             }
         }
+
         Ok(())
     }
 

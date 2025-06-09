@@ -58,3 +58,8 @@ statement error
 FROM ST_Read_Multi('test/data/*.gpkg', layer='no such layer');
 ----
 Binder Error: No layers are found
+
+query I
+SELECT count(1) FROM ST_Read_Multi('test/data/many_rows/points_*.gpkg');
+----
+4097

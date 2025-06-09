@@ -1,5 +1,7 @@
 use crate::types::{ColumnSpec, ColumnType};
-use rusqlite::{Connection, OpenFlags, Result};
+use crate::VECTOR_SIZE;
+
+use rusqlite::{Connection, OpenFlags, Result, Row};
 use std::{
     path::Path,
     sync::{Arc, Mutex},
@@ -9,14 +11,58 @@ use std::{
 pub struct GpkgDataSource {
     pub layer_name: String,
     pub column_specs: Vec<ColumnSpec>,
+    pub sql: String,
     pub gpkg: Gpkg,
 }
 
 #[derive(Clone)]
 pub struct Gpkg {
-    pub conn: Arc<Mutex<Connection>>,
+    pub conn: Arc<Mutex<GpkgConnection>>,
     pub path: String,
     pub layers: Vec<String>,
+}
+
+pub struct GpkgConnection {
+    // TODO: probably, this should contain Statement instaed of Connection.
+    // But, it seems it's not possible due to the lifetime requirement.
+    pub conn: Connection,
+    pub offset: usize,
+    pub done: bool,
+}
+
+impl GpkgConnection {
+    fn new(conn: Connection) -> Self {
+        Self {
+            conn,
+            offset: 0,
+            done: false,
+        }
+    }
+
+    // If all the rows are fetched, return true
+    pub fn fetch_rows<F>(&mut self, sql: &str, f: F) -> Result<bool>
+    where
+        F: FnMut(&Row<'_>) -> Result<()>,
+    {
+        if self.done {
+            return Ok(true);
+        }
+
+        let mut stmt = self.conn.prepare_cached(sql)?;
+        let result = stmt
+            .query_map([self.offset], f)?
+            // result needs to be consumed, otherwise, the closure is not executed.
+            .collect::<Result<Vec<()>>>()?;
+
+        let row_count = result.len();
+        self.offset += row_count;
+
+        if row_count != VECTOR_SIZE {
+            self.done = true;
+        }
+
+        Ok(self.done)
+    }
 }
 
 impl Gpkg {
@@ -45,14 +91,14 @@ impl Gpkg {
             };
 
             Ok(Self {
-                conn: Arc::new(Mutex::new(conn)),
+                conn: Arc::new(Mutex::new(GpkgConnection::new(conn))),
                 path,
                 layers,
             })
         } else {
             // If layer is not specified, return all the layers
             Ok(Self {
-                conn: Arc::new(Mutex::new(conn)),
+                conn: Arc::new(Mutex::new(GpkgConnection::new(conn))),
                 path,
                 layers,
             })
@@ -69,7 +115,7 @@ impl Gpkg {
             "SELECT name, type FROM pragma_table_info('{}') WHERE name != 'fid'",
             table_name.as_ref()
         );
-        let mut stmt = conn.prepare(&query)?;
+        let mut stmt = conn.conn.prepare(&query)?;
 
         let column_specs = stmt.query_map([], |row| {
             let name: String = row.get(0)?;
@@ -107,9 +153,21 @@ impl Gpkg {
 
         for layer in &self.layers {
             let column_specs = self.get_column_specs(layer)?;
+
+            let sql = format!(
+                r#"SELECT {} FROM "{}" ORDER BY fid LIMIT {VECTOR_SIZE} OFFSET ?"#,
+                column_specs
+                    .iter()
+                    .map(|s| format!(r#""{}""#, s.name))
+                    .collect::<Vec<String>>()
+                    .join(","),
+                layer,
+            );
+
             sources.push(GpkgDataSource {
                 layer_name: layer.to_string(),
                 column_specs,
+                sql,
                 gpkg: self.clone(),
             });
         }

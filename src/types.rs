@@ -85,5 +85,5 @@ impl From<GpkgBindData> for StReadMultiBindData {
 #[repr(C)]
 pub struct StReadMultiInitData {
     pub done: AtomicBool,
-    // pub cur_source_idx: AtomicUsize,
+    pub cur_source_idx: AtomicUsize,
 }
