@@ -53,7 +53,7 @@ impl GeoJsonDataSource {
                 let filename = path.to_string_lossy().into_owned();
                 let data_sources = feature_collection
                     .features
-                    .chunks(2048)
+                    .chunks(VECTOR_SIZE)
                     .map(|features| GeoJsonDataSource {
                         features: features.to_vec(),
                         filename: filename.clone(),
