@@ -1,7 +1,7 @@
 use duckdb::core::LogicalTypeHandle;
 use duckdb::core::LogicalTypeId;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::AtomicUsize;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::geojson::GeoJsonDataSource;
 use crate::gpkg::GpkgDataSource;
@@ -65,8 +65,21 @@ impl From<GpkgBindData> for StReadMultiBindData {
     }
 }
 
+pub struct Cursor {
+    pub source_idx: usize,
+    pub offset: usize,
+}
+
 #[repr(C)]
 pub struct StReadMultiInitData {
-    pub done: AtomicBool,
-    pub cur_source_idx: AtomicUsize,
+    pub cursor: Arc<Mutex<Cursor>>,
+}
+
+impl Cursor {
+    pub fn new() -> Self {
+        Self {
+            source_idx: 0,
+            offset: 0,
+        }
+    }
 }
