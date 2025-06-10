@@ -38,7 +38,7 @@ FROM ST_Read_Multi('test/data/*.geojson');
 
 ```
 ┌─────────────────┬────────┬─────────┬───────────────────────────┐
-│    geometry     │  val1  │  val2   │         filename          │
+│    geometry     │  val1  │  val2   │         .filename         │
 │    geometry     │ double │ varchar │          varchar          │
 ├─────────────────┼────────┼─────────┼───────────────────────────┤
 │ POINT (1 2)     │    1.0 │ a       │ test/data/points.geojson  │
@@ -58,7 +58,7 @@ FROM ST_Read_Multi('test/data/*.gpkg');
 
 ```
 ┌─────────────────┬───────┬─────────┬─────────────────────────────┬───────────────┐
-│      geom       │ val1  │  val2   │          filename           │     layer     │
+│      geom       │ val1  │  val2   │          .filename          │    .layer     │
 │    geometry     │ int32 │ varchar │           varchar           │    varchar    │
 ├─────────────────┼───────┼─────────┼─────────────────────────────┼───────────────┤
 │ POINT (100 200) │     5 │ c       │ test/data/multi_layers.gpkg │ points2_point │
@@ -81,7 +81,7 @@ FROM ST_Read_Multi('test/data/*.gpkg', layer='points');
 ```
 [WARN] No such layer 'points' in test/data/multi_layers.gpkg
 ┌─────────────────┬───────┬─────────┬────────────────────────┬─────────┐
-│      geom       │ val1  │  val2   │        filename        │  layer  │
+│      geom       │ val1  │  val2   │       .filename        │ .layer  │
 │    geometry     │ int32 │ varchar │        varchar         │ varchar │
 ├─────────────────┼───────┼─────────┼────────────────────────┼─────────┤
 │ POINT (1 2)     │     1 │ a       │ test/data/points.gpkg  │ points  │
