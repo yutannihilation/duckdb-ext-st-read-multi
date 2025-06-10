@@ -2,10 +2,7 @@ use std::{fs::File, path::Path};
 
 use geojson::Feature;
 
-use crate::{
-    types::{ColumnSpec, ColumnType},
-    VECTOR_SIZE,
-};
+use crate::types::{ColumnSpec, ColumnType};
 
 // Note: NULL must be handled outside of this function
 impl TryFrom<&serde_json::Value> for ColumnType {
