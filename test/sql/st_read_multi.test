@@ -38,7 +38,7 @@ POINT (111 222)	6.0	d
 
 # multi-layer Gpkg file
 query IIII
-SELECT ST_GeomFromWkb(geom), val1, val2, layer FROM ST_Read_Multi('test/data/multi_layers.gpkg');
+SELECT ST_GeomFromWkb(geom), val1, val2, ".layer" FROM ST_Read_Multi('test/data/multi_layers.gpkg');
 ----
 POINT (100 200)	5.0	c	points2_point
 POINT (111 222)	6.0	d	points2_point
@@ -47,7 +47,7 @@ POINT (10 20)	 2.0	b	points_point
 
 # multiple Gpkg files with layer filtering
 query IIII
-SELECT ST_GeomFromWkb(geom), val1, val2, parse_filename(filename) FROM ST_Read_Multi('test/data/*.gpkg', layer='points');
+SELECT ST_GeomFromWkb(geom), val1, val2, parse_filename(".filename") FROM ST_Read_Multi('test/data/*.gpkg', layer='points');
 ----
 POINT (1 2)	 1.0	a	points.gpkg
 POINT (10 20)	 2.0	b	points.gpkg
