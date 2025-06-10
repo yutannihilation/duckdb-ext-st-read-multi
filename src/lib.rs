@@ -174,7 +174,12 @@ impl VTab for StReadMultiVTab {
                 let mut row_idx: usize = 0;
                 let mut wkb_converter = WkbConverter::new();
                 let source = &bind_data_inner.sources[cursor.source_idx];
-                for f in &source.features {
+
+                let range_end = std::cmp::min(cursor.offset + VECTOR_SIZE, source.features.len());
+                let last = range_end >= source.features.len();
+                let range = cursor.offset..range_end;
+
+                for f in &source.features[range] {
                     let wkb_data = wkb_converter.convert(f)?;
                     geom_vector.insert(row_idx, wkb_data);
                     filename_vector.insert(row_idx, source.filename.as_str());
@@ -214,9 +219,12 @@ impl VTab for StReadMultiVTab {
                     row_idx += 1;
                 }
 
-                // TODO
-                // cursor.offset += VECTOR_SIZE;
-                cursor.source_idx += 1;
+                if last {
+                    cursor.source_idx += 1;
+                    cursor.offset = 0;
+                } else {
+                    cursor.offset += VECTOR_SIZE;
+                }
 
                 output.set_len(row_idx);
                 return Ok(());
@@ -239,79 +247,93 @@ impl VTab for StReadMultiVTab {
                 let filename_vector = output.flat_vector(n_props);
                 let layer_name_vector = output.flat_vector(n_props + 1);
 
-                let mut row_idx: usize = 0;
-
                 // Note: This for loop is a bit tricky. This is necessary to let this function
                 // return non-empty result, otherwise DuckDB would assume the query is done.
                 for source in &bind_data_inner.sources[cursor.source_idx..] {
                     let mut conn = source.gpkg.conn.lock().unwrap();
 
-                    let row_count = conn.fetch_rows(&source.sql, cursor.offset, |row| {
-                        // Insert filename
-                        filename_vector.insert(row_idx, source.gpkg.path.as_str());
-                        layer_name_vector.insert(row_idx, source.layer_name.as_str());
+                    let row_count =
+                        conn.fetch_rows(&source.sql, cursor.offset, |row, row_idx: usize| {
+                            // Insert filename
+                            filename_vector.insert(row_idx, source.gpkg.path.as_str());
+                            layer_name_vector.insert(row_idx, source.layer_name.as_str());
 
-                        for (col_idx, spec) in source.column_specs.iter().enumerate() {
-                            match &spec.column_type {
-                                ColumnType::Integer => {
-                                    let val: Option<i64> = row.get(col_idx)?;
-                                    match val {
-                                        Some(v) => {
-                                            property_vectors[col_idx].as_mut_slice()[row_idx] =
-                                                v as i32
+                            for (col_idx, spec) in source.column_specs.iter().enumerate() {
+                                match &spec.column_type {
+                                    ColumnType::Integer => {
+                                        let val: Option<i64> = row.get(col_idx)?;
+                                        match val {
+                                            Some(v) => {
+                                                property_vectors[col_idx].as_mut_slice()[row_idx] =
+                                                    v as i32
+                                            }
+                                            None => property_vectors[col_idx].set_null(row_idx),
                                         }
-                                        None => property_vectors[col_idx].set_null(row_idx),
                                     }
-                                }
-                                ColumnType::Double => {
-                                    let val: Option<f64> = row.get(col_idx)?;
-                                    match val {
-                                        Some(v) => {
-                                            property_vectors[col_idx].as_mut_slice()[row_idx] = v
+                                    ColumnType::Double => {
+                                        let val: Option<f64> = row.get(col_idx)?;
+                                        match val {
+                                            Some(v) => {
+                                                property_vectors[col_idx].as_mut_slice()[row_idx] =
+                                                    v
+                                            }
+                                            None => property_vectors[col_idx].set_null(row_idx),
                                         }
-                                        None => property_vectors[col_idx].set_null(row_idx),
                                     }
-                                }
-                                ColumnType::Varchar => {
-                                    let val: Option<String> = row.get(col_idx)?;
-                                    match val {
-                                        Some(v) => {
-                                            property_vectors[col_idx].insert(row_idx, v.as_str())
+                                    ColumnType::Varchar => {
+                                        let val: Option<String> = row.get(col_idx)?;
+                                        match val {
+                                            Some(v) => property_vectors[col_idx]
+                                                .insert(row_idx, v.as_str()),
+                                            None => property_vectors[col_idx].set_null(row_idx),
                                         }
-                                        None => property_vectors[col_idx].set_null(row_idx),
                                     }
-                                }
-                                ColumnType::Boolean => {
-                                    let val: Option<bool> = row.get(col_idx)?;
-                                    match val {
-                                        Some(v) => {
-                                            property_vectors[col_idx].as_mut_slice()[row_idx] = v
+                                    ColumnType::Boolean => {
+                                        let val: Option<bool> = row.get(col_idx)?;
+                                        match val {
+                                            Some(v) => {
+                                                property_vectors[col_idx].as_mut_slice()[row_idx] =
+                                                    v
+                                            }
+                                            None => property_vectors[col_idx].set_null(row_idx),
                                         }
-                                        None => property_vectors[col_idx].set_null(row_idx),
                                     }
-                                }
-                                ColumnType::Geometry => {
-                                    let val: Option<Vec<u8>> = row.get(col_idx)?;
-                                    match val {
-                                        Some(v) => property_vectors[col_idx]
-                                            .insert(row_idx, gpkg_geometry_to_wkb(&v)),
-                                        None => property_vectors[col_idx].set_null(row_idx),
+                                    ColumnType::Geometry => {
+                                        let val: Option<Vec<u8>> = row.get(col_idx)?;
+                                        match val {
+                                            Some(v) => property_vectors[col_idx]
+                                                .insert(row_idx, gpkg_geometry_to_wkb(&v)),
+                                            None => property_vectors[col_idx].set_null(row_idx),
+                                        }
                                     }
                                 }
                             }
+
+                            Ok(())
+                        })?;
+
+                    match row_count {
+                        // This is a special case. While we want to just return the result,
+                        // to DuckDB, 0-row result means it's finished. But, we don't want
+                        // to finish as long as there's any remaining data sources.
+                        0 => {
+                            cursor.source_idx += 1;
+                            cursor.offset = 0;
+
+                            if cursor.source_idx < bind_data_inner.sources.len() {
+                                continue;
+                            }
                         }
-
-                        row_idx += 1;
-
-                        Ok(())
-                    })?;
-
-                    if row_count == 0 {
-                        cursor.source_idx += 1;
-                        cursor.offset = 0;
-                        continue;
-                    } else {
-                        cursor.offset += row_count;
+                        // return the current result and proceed to the next data source
+                        1..VECTOR_SIZE => {
+                            cursor.source_idx += 1;
+                            cursor.offset = 0;
+                        }
+                        // return the current result and continue on the current data source
+                        VECTOR_SIZE => {
+                            cursor.offset += row_count;
+                        }
+                        _ => unreachable!(),
                     }
 
                     // return result and break this loop.

@@ -71,14 +71,10 @@ impl GeoJsonDataSource {
                 column_specs.sort_by(|a, b| a.name.cmp(&b.name));
 
                 let filename = path.to_string_lossy().into_owned();
-                let data_sources = feature_collection
-                    .features
-                    .chunks(VECTOR_SIZE)
-                    .map(|features| GeoJsonDataSource {
-                        features: features.to_vec(),
-                        filename: filename.clone(),
-                    })
-                    .collect();
+                let data_sources = vec![GeoJsonDataSource {
+                    features: feature_collection.features,
+                    filename,
+                }];
 
                 Ok((data_sources, column_specs))
             }

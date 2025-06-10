@@ -34,13 +34,19 @@ impl GpkgConnection {
     }
 
     // Returns the number of rows fetched.
-    pub fn fetch_rows<F>(&mut self, sql: &str, offset: usize, f: F) -> Result<usize>
+    pub fn fetch_rows<F>(&mut self, sql: &str, offset: usize, mut f: F) -> Result<usize>
     where
-        F: FnMut(&Row<'_>) -> Result<()>,
+        F: FnMut(&Row<'_>, usize) -> Result<()>,
     {
+        let mut row_idx: usize = 0;
+
         let mut stmt = self.conn.prepare_cached(sql)?;
         let result = stmt
-            .query_map([offset], f)?
+            .query_map([offset], |row| {
+                let result = f(row, row_idx);
+                row_idx += 1;
+                result
+            })?
             // result needs to be consumed, otherwise, the closure is not executed.
             .collect::<Result<Vec<()>>>()?;
 
