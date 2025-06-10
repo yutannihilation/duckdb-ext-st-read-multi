@@ -36,6 +36,9 @@ use crate::{
 // but use a fixed value here.
 pub(crate) const VECTOR_SIZE: usize = 2048;
 
+const COLUMN_NAME_FILENAME: &str = ".filename";
+const COLUMN_NAME_LAYER: &str = ".layer";
+
 struct StReadMultiVTab;
 
 impl VTab for StReadMultiVTab {
@@ -81,7 +84,7 @@ impl VTab for StReadMultiVTab {
             }
 
             // filename column to track source file
-            bind.add_result_column("filename", LogicalTypeId::Varchar.into());
+            bind.add_result_column(COLUMN_NAME_FILENAME, LogicalTypeId::Varchar.into());
 
             return Ok(GeoJsonBindData {
                 sources,
@@ -123,8 +126,8 @@ impl VTab for StReadMultiVTab {
             }
 
             // filename and layer column to track source
-            bind.add_result_column("filename", LogicalTypeId::Varchar.into());
-            bind.add_result_column("layer", LogicalTypeId::Varchar.into());
+            bind.add_result_column(COLUMN_NAME_FILENAME, LogicalTypeId::Varchar.into());
+            bind.add_result_column(COLUMN_NAME_LAYER, LogicalTypeId::Varchar.into());
 
             return Ok(GpkgBindData {
                 sources,
