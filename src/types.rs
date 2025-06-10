@@ -16,23 +16,6 @@ pub enum ColumnType {
     Geometry,
 }
 
-// Note: NULL must be handled outside of this function
-impl TryFrom<&serde_json::Value> for ColumnType {
-    type Error = Box<dyn std::error::Error>;
-
-    fn try_from(value: &serde_json::Value) -> std::result::Result<Self, Self::Error> {
-        match value {
-            serde_json::Value::Bool(_) => Ok(Self::Boolean),
-            serde_json::Value::Number(_number) => {
-                // TODO: detect integer or double
-                Ok(Self::Double)
-            }
-            serde_json::Value::String(_) => Ok(Self::Varchar),
-            _ => Err(format!("Unsupported type: {value:?}").into()),
-        }
-    }
-}
-
 impl From<ColumnType> for LogicalTypeHandle {
     fn from(value: ColumnType) -> Self {
         match value {
