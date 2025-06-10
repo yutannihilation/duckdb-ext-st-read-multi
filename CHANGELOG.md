@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.3] - 2025-01-10
+## [0.0.3] - 2025-06-11
 
 ### Changed
 - Renamed columns `filename` and `layer` to avoid conflicts with existing column names in the source data
@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - Removed unused imports
 
-## [0.0.2] - 2025-01-10
+## [0.0.2] - 2025-06-10
 
 ### Added
 - Support for reading multiple GeoJSON files with glob patterns
