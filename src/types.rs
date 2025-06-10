@@ -1,7 +1,7 @@
 use duckdb::core::LogicalTypeHandle;
 use duckdb::core::LogicalTypeId;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::AtomicUsize;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::geojson::GeoJsonDataSource;
 use crate::gpkg::GpkgDataSource;
@@ -14,23 +14,6 @@ pub enum ColumnType {
     Double,
     Integer,
     Geometry,
-}
-
-// Note: NULL must be handled outside of this function
-impl TryFrom<&serde_json::Value> for ColumnType {
-    type Error = Box<dyn std::error::Error>;
-
-    fn try_from(value: &serde_json::Value) -> std::result::Result<Self, Self::Error> {
-        match value {
-            serde_json::Value::Bool(_) => Ok(Self::Boolean),
-            serde_json::Value::Number(_number) => {
-                // TODO: detect integer or double
-                Ok(Self::Double)
-            }
-            serde_json::Value::String(_) => Ok(Self::Varchar),
-            _ => Err(format!("Unsupported type: {value:?}").into()),
-        }
-    }
 }
 
 impl From<ColumnType> for LogicalTypeHandle {
@@ -82,8 +65,21 @@ impl From<GpkgBindData> for StReadMultiBindData {
     }
 }
 
+pub struct Cursor {
+    pub source_idx: usize,
+    pub offset: usize,
+}
+
 #[repr(C)]
 pub struct StReadMultiInitData {
-    pub done: AtomicBool,
-    pub cur_source_idx: AtomicUsize,
+    pub cursor: Arc<Mutex<Cursor>>,
+}
+
+impl Cursor {
+    pub fn new() -> Self {
+        Self {
+            source_idx: 0,
+            offset: 0,
+        }
+    }
 }

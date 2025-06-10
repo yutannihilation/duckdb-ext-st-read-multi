@@ -7,6 +7,23 @@ use crate::{
     VECTOR_SIZE,
 };
 
+// Note: NULL must be handled outside of this function
+impl TryFrom<&serde_json::Value> for ColumnType {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: &serde_json::Value) -> std::result::Result<Self, Self::Error> {
+        match value {
+            serde_json::Value::Bool(_) => Ok(Self::Boolean),
+            serde_json::Value::Number(_number) => {
+                // TODO: detect integer or double
+                Ok(Self::Double)
+            }
+            serde_json::Value::String(_) => Ok(Self::Varchar),
+            _ => Err(format!("Unsupported type: {value:?}").into()),
+        }
+    }
+}
+
 #[repr(C)]
 pub struct GeoJsonDataSource {
     pub features: Vec<Feature>,
@@ -54,14 +71,10 @@ impl GeoJsonDataSource {
                 column_specs.sort_by(|a, b| a.name.cmp(&b.name));
 
                 let filename = path.to_string_lossy().into_owned();
-                let data_sources = feature_collection
-                    .features
-                    .chunks(VECTOR_SIZE)
-                    .map(|features| GeoJsonDataSource {
-                        features: features.to_vec(),
-                        filename: filename.clone(),
-                    })
-                    .collect();
+                let data_sources = vec![GeoJsonDataSource {
+                    features: feature_collection.features,
+                    filename,
+                }];
 
                 Ok((data_sources, column_specs))
             }

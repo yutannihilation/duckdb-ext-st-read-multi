@@ -26,43 +26,31 @@ pub struct GpkgConnection {
     // TODO: probably, this should contain Statement instaed of Connection.
     // But, it seems it's not possible due to the lifetime requirement.
     pub conn: Connection,
-    pub offset: usize,
-    pub finished_layers: Vec<String>,
 }
 
 impl GpkgConnection {
     fn new(conn: Connection) -> Self {
-        Self {
-            conn,
-            offset: 0,
-            finished_layers: vec![],
-        }
+        Self { conn }
     }
 
-    // If all the rows are fetched, return true
-    pub fn fetch_rows<F>(&mut self, sql: &str, layer_name: &String, f: F) -> Result<bool>
+    // Returns the number of rows fetched.
+    pub fn fetch_rows<F>(&mut self, sql: &str, offset: usize, mut f: F) -> Result<usize>
     where
-        F: FnMut(&Row<'_>) -> Result<()>,
+        F: FnMut(&Row<'_>, usize) -> Result<()>,
     {
-        if self.finished_layers.contains(layer_name) {
-            return Ok(true);
-        }
+        let mut row_idx: usize = 0;
 
         let mut stmt = self.conn.prepare_cached(sql)?;
         let result = stmt
-            .query_map([self.offset], f)?
+            .query_map([offset], |row| {
+                let result = f(row, row_idx);
+                row_idx += 1;
+                result
+            })?
             // result needs to be consumed, otherwise, the closure is not executed.
             .collect::<Result<Vec<()>>>()?;
 
-        let row_count = result.len();
-        self.offset += row_count;
-
-        if row_count != VECTOR_SIZE {
-            self.finished_layers.push(layer_name.clone());
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        Ok(result.len())
     }
 }
 
