@@ -16,7 +16,7 @@ duckdb-loadable-macros = "0.1.9"
 libduckdb-sys = { version = "1.3.2", features = ["loadable-extension"] }
 
 # GIS data
-geo-types = "0.7.16"
+geo-types = "0.7.17"
 wkb = "0.9.0"
 
 # GeoJSON
