@@ -28,4 +28,4 @@ rusqlite = { version = "0.36", features = ["bundled"] }
 
 # file path
 glob = "0.3.2"
-home = "0.5.11"
+home = "0.5.12"
