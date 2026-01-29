@@ -12,7 +12,7 @@ strip = true
 
 [dependencies]
 duckdb = { version = "1.4.4", features = ["vtab-loadable"] }
-duckdb-loadable-macros = "0.1.13"
+duckdb-loadable-macros = "0.1.14"
 libduckdb-sys = { version = "1.4.4", features = ["loadable-extension"] }
 
 # GIS data
