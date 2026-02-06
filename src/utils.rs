@@ -28,6 +28,13 @@ pub fn is_gpkg<P: AsRef<Path>>(path: P) -> bool {
     }
 }
 
+pub fn is_shp<P: AsRef<Path>>(path: P) -> bool {
+    match path.as_ref().extension() {
+        Some(ext) => ext.to_string_lossy() == "shp",
+        None => false,
+    }
+}
+
 pub fn validate_schema(
     existing_specs: &[ColumnSpec],
     new_specs: &[ColumnSpec],
