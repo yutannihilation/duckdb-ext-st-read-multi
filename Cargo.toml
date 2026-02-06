@@ -26,6 +26,18 @@ serde_json = "1.0.149"
 # Gpkg
 rusqlite = { version = "0.36", features = ["bundled"] }
 
+# Shapefile
+shapefile = { version = "0.7", features = [
+    "encoding_rs",
+    "geo-traits",
+    "geo-types",
+] }
+dbase = { version = "0.6", features = ["encoding_rs"] }
+
 # file path
 glob = "0.3.2"
 home = "0.5.12"
+
+[patch.crates-io]
+shapefile = { git = "https://github.com/tmontaigu/shapefile-rs" }
+dbase = { git = "https://github.com/tmontaigu/dbase-rs" }
