@@ -11,7 +11,7 @@ This extension is to import multiple files e.g. `ST_Read_Multi('path/to/*.geojso
 
 ## Limitations
 
-- Only GeoJSON and GeoPackages are supported.
+- Only GeoJSON, GeoPackages, and Shapefiles are supported.
 - `ST_Read_Multi` is highly inefficient compared to `ST_Read`; this eagerly reads
   all the data and doesn't support pushdown, spatial index, etc.
 - The returned geometry column is actually in WKB, but the type is `BLOB`, not
@@ -93,4 +93,14 @@ FROM ST_Read_Multi('test/data/*.gpkg', layer='points');
 
 ### Shapefile
 
-Not Yet!
+```sql
+SELECT * REPLACE (ST_GeomFromWkb(geometry) as geometry)
+FROM ST_Read_Multi('test/data/*.shp');
+```
+
+Notes:
+
+- Input should be specified as `*.shp` (not `*.dbf`).
+- Attribute encoding is read from DBF LDID when available.
+- If LDID is missing, this extension also tries to infer encoding from a sidecar `.cpg` file.
+- Compared to `duckdb-spatial`'s current `ST_Read` behavior, this is useful when you need to read non-UTF-8 Shapefiles (e.g. CP932/Shift_JIS DBF attributes).

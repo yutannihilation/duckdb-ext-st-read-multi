@@ -4,6 +4,7 @@ extern crate libduckdb_sys;
 
 mod geojson;
 mod gpkg;
+mod shapefile;
 mod types;
 mod utils;
 
@@ -15,7 +16,6 @@ use duckdb::{
 use duckdb_loadable_macros::duckdb_entrypoint_c_api;
 use geojson::WkbConverter;
 use glob::glob;
-use libduckdb_sys as ffi;
 use std::{
     error::Error,
     path::PathBuf,
@@ -25,11 +25,12 @@ use std::{
 use crate::{
     geojson::GeoJsonDataSource,
     gpkg::{gpkg_geometry_to_wkb, Gpkg, GpkgDataSource},
+    shapefile::ShapefileDataSource,
     types::{
-        ColumnSpec, ColumnType, Cursor, GeoJsonBindData, GpkgBindData, StReadMultiBindData,
-        StReadMultiInitData,
+        ColumnSpec, ColumnType, Cursor, GeoJsonBindData, GpkgBindData, ShapefileBindData,
+        StReadMultiBindData, StReadMultiInitData,
     },
-    utils::{expand_tilde, is_geojson, is_gpkg, validate_schema},
+    utils::{expand_tilde, is_geojson, is_gpkg, is_shp, validate_schema},
 };
 
 // The data chunk size. This can be obtained via libduckdb_sys::duckdb_vector_size(),
@@ -136,7 +137,44 @@ impl VTab for StReadMultiVTab {
             .into());
         }
 
-        Err("All file must have extension of either '.geojson' or '.gpkg'".into())
+        // ==================== //
+        //     Shapefile        //
+        // ==================== //
+
+        if paths.iter().all(is_shp) {
+            let mut sources: Vec<ShapefileDataSource> = Vec::new();
+            let mut column_specs: Option<Vec<ColumnSpec>> = None;
+
+            for path in paths {
+                let source = ShapefileDataSource::new(&path)?;
+                let column_specs_local = source.column_specs.clone();
+
+                if let Some(existing_specs) = &column_specs {
+                    validate_schema(existing_specs, &column_specs_local, &path)?;
+                } else {
+                    let _ = column_specs.insert(column_specs_local);
+                }
+
+                sources.push(source);
+            }
+
+            let column_specs = column_specs.unwrap();
+
+            bind.add_result_column("geometry", LogicalTypeId::Blob.into());
+            for spec in column_specs.iter() {
+                bind.add_result_column(&spec.name, spec.column_type.into());
+            }
+
+            bind.add_result_column(COLUMN_NAME_FILENAME, LogicalTypeId::Varchar.into());
+
+            return Ok(ShapefileBindData {
+                sources,
+                column_specs,
+            }
+            .into());
+        }
+
+        Err("All files must have extension '.geojson', '.gpkg', or '.shp'".into())
     }
 
     fn init(_: &InitInfo) -> Result<Self::InitData, Box<dyn std::error::Error>> {
@@ -343,6 +381,89 @@ impl VTab for StReadMultiVTab {
                     output.set_len(row_count);
                     return Ok(());
                 }
+            }
+
+            // ==================== //
+            //     Shapefile        //
+            // ==================== //
+            StReadMultiBindData::Shapefile(bind_data_inner) => {
+                if cursor.source_idx >= bind_data_inner.sources.len() {
+                    output.set_len(0);
+                    return Ok(());
+                }
+
+                let mut geom_vector = output.flat_vector(0);
+                let n_props = bind_data_inner.column_specs.len();
+                let mut property_vectors: Vec<FlatVector> =
+                    (0..n_props).map(|i| output.flat_vector(i + 1)).collect();
+                let filename_vector = output.flat_vector(n_props + 1);
+
+                let mut row_idx: usize = 0;
+                let source = &bind_data_inner.sources[cursor.source_idx];
+
+                let range_end = std::cmp::min(cursor.offset + VECTOR_SIZE, source.rows.len());
+                let last = range_end >= source.rows.len();
+                let range = cursor.offset..range_end;
+
+                for row in &source.rows[range] {
+                    match &row.geometry {
+                        Some(wkb_data) => geom_vector.insert(row_idx, wkb_data.as_slice()),
+                        None => geom_vector.set_null(row_idx),
+                    }
+                    filename_vector.insert(row_idx, source.filename.as_str());
+
+                    for (prop_idx, spec) in bind_data_inner.column_specs.iter().enumerate() {
+                        let val = row.record.get(&spec.name);
+
+                        use ::shapefile::dbase::FieldValue;
+                        match (spec.column_type, val) {
+                            (ColumnType::Varchar, Some(FieldValue::Character(Some(v)))) => {
+                                property_vectors[prop_idx].insert(row_idx, v.as_str());
+                            }
+                            (ColumnType::Varchar, Some(FieldValue::Memo(v))) => {
+                                property_vectors[prop_idx].insert(row_idx, v.as_str());
+                            }
+                            (ColumnType::Varchar, Some(FieldValue::Date(Some(v)))) => {
+                                property_vectors[prop_idx].insert(row_idx, v.to_string().as_str());
+                            }
+                            (ColumnType::Boolean, Some(FieldValue::Logical(Some(v)))) => {
+                                property_vectors[prop_idx].as_mut_slice()[row_idx] = *v;
+                            }
+                            (ColumnType::Integer, Some(FieldValue::Integer(v))) => {
+                                property_vectors[prop_idx].as_mut_slice()[row_idx] = *v;
+                            }
+                            (ColumnType::Double, Some(FieldValue::Numeric(Some(v)))) => {
+                                property_vectors[prop_idx].as_mut_slice()[row_idx] = *v;
+                            }
+                            (ColumnType::Double, Some(FieldValue::Float(Some(v)))) => {
+                                property_vectors[prop_idx].as_mut_slice()[row_idx] = *v as f64;
+                            }
+                            (ColumnType::Double, Some(FieldValue::Currency(v)))
+                            | (ColumnType::Double, Some(FieldValue::Double(v))) => {
+                                property_vectors[prop_idx].as_mut_slice()[row_idx] = *v;
+                            }
+                            (ColumnType::Double, Some(FieldValue::DateTime(v))) => {
+                                property_vectors[prop_idx].as_mut_slice()[row_idx] =
+                                    v.to_unix_timestamp() as f64;
+                            }
+                            _ => {
+                                property_vectors[prop_idx].set_null(row_idx);
+                            }
+                        }
+                    }
+
+                    row_idx += 1;
+                }
+
+                if last {
+                    cursor.source_idx += 1;
+                    cursor.offset = 0;
+                } else {
+                    cursor.offset += VECTOR_SIZE;
+                }
+
+                output.set_len(row_idx);
+                return Ok(());
             }
         }
 

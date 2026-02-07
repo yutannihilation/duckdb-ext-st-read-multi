@@ -9,6 +9,8 @@ CREATE TABLE t_2049 AS
 
 COPY t_2048 TO 'test/data/many_rows/points_2048.geojson' WITH (FORMAT GDAL, DRIVER 'GeoJSON');
 COPY t_2048 TO 'test/data/many_rows/points_2048.gpkg' WITH (FORMAT GDAL, DRIVER 'GPKG');
+COPY t_2048 TO 'test/data/many_rows/points_2048.shp' WITH (FORMAT GDAL, DRIVER 'ESRI Shapefile');
 
 COPY t_2049 TO 'test/data/many_rows/points_2049.geojson' WITH (FORMAT GDAL, DRIVER 'GeoJSON');
 COPY t_2049 TO 'test/data/many_rows/points_2049.gpkg' WITH (FORMAT GDAL, DRIVER 'GPKG');
+COPY t_2049 TO 'test/data/many_rows/points_2049.shp' WITH (FORMAT GDAL, DRIVER 'ESRI Shapefile');

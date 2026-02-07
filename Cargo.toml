@@ -1,6 +1,6 @@
 [package]
 name = "st_read_multi"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 
 [lib]
@@ -26,6 +26,17 @@ serde_json = "1.0.149"
 # Gpkg
 rusqlite = { version = "0.36", features = ["bundled"] }
 
+# Shapefile
+shapefile = { version = "0.7", features = [
+    "encoding_rs",
+    "geo-traits",
+    "geo-types",
+] }
+
 # file path
 glob = "0.3.2"
 home = "0.5.12"
+
+[patch.crates-io]
+shapefile = { git = "https://github.com/tmontaigu/shapefile-rs" }
+dbase = { git = "https://github.com/yutannihilation/dbase-rs", branch = "fix/cp932-codepage" }

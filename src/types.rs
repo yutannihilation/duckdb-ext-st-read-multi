@@ -5,6 +5,7 @@ use std::sync::Mutex;
 
 use crate::geojson::GeoJsonDataSource;
 use crate::gpkg::GpkgDataSource;
+use crate::shapefile::ShapefileDataSource;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]
@@ -48,9 +49,16 @@ pub struct GpkgBindData {
 }
 
 #[repr(C)]
+pub struct ShapefileBindData {
+    pub sources: Vec<ShapefileDataSource>,
+    pub column_specs: Vec<ColumnSpec>,
+}
+
+#[repr(C)]
 pub enum StReadMultiBindData {
     GeoJson(GeoJsonBindData),
     Gpkg(GpkgBindData),
+    Shapefile(ShapefileBindData),
 }
 
 impl From<GeoJsonBindData> for StReadMultiBindData {
@@ -62,6 +70,12 @@ impl From<GeoJsonBindData> for StReadMultiBindData {
 impl From<GpkgBindData> for StReadMultiBindData {
     fn from(value: GpkgBindData) -> Self {
         Self::Gpkg(value)
+    }
+}
+
+impl From<ShapefileBindData> for StReadMultiBindData {
+    fn from(value: ShapefileBindData) -> Self {
+        Self::Shapefile(value)
     }
 }
 
