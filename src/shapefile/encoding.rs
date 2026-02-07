@@ -12,7 +12,10 @@ pub(crate) fn infer_encoding_from_cpg(cpg_path: &Path) -> Option<InferredEncodin
     }
 
     let label = std::fs::read_to_string(cpg_path).ok()?;
-    let upper = label.to_ascii_uppercase();
+    let upper = label
+        .trim()
+        .trim_start_matches('\u{feff}')
+        .to_ascii_uppercase();
     let enc = match upper.as_str() {
         "UTF-8" | "65001" => ::shapefile::dbase::encoding_rs::UTF_8,
         "CP932" | "SHIFT_JIS" | "SJIS" => ::shapefile::dbase::encoding_rs::SHIFT_JIS,
