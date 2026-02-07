@@ -63,3 +63,14 @@ fn test_get_column_specs_cp932_with_cpg() -> Result<(), Box<dyn std::error::Erro
 
     Ok(())
 }
+
+#[test]
+fn test_field_type_mapping_date_and_datetime() {
+    use ::shapefile::dbase::FieldType;
+
+    assert_eq!(ColumnType::from(FieldType::Date), ColumnType::Date);
+    assert_eq!(
+        ColumnType::from(FieldType::DateTime),
+        ColumnType::Timestamp
+    );
+}

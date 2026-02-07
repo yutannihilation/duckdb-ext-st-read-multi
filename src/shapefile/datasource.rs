@@ -87,9 +87,9 @@ impl From<::shapefile::dbase::FieldType> for ColumnType {
             FieldType::Numeric | FieldType::Float | FieldType::Currency | FieldType::Double => {
                 Self::Double
             }
-            FieldType::DateTime => Self::Double, // TODO
+            FieldType::DateTime => Self::Timestamp,
             FieldType::Character | FieldType::Memo => Self::Varchar,
-            FieldType::Date => Self::Varchar, // TODO
+            FieldType::Date => Self::Date,
         }
     }
 }

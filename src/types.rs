@@ -14,6 +14,8 @@ pub enum ColumnType {
     Varchar,
     Double,
     Integer,
+    Date,
+    Timestamp,
     Geometry,
 }
 
@@ -23,6 +25,8 @@ impl From<ColumnType> for LogicalTypeHandle {
             ColumnType::Boolean => LogicalTypeId::Boolean.into(),
             ColumnType::Double => LogicalTypeId::Double.into(),
             ColumnType::Integer => LogicalTypeId::Integer.into(),
+            ColumnType::Date => LogicalTypeId::Date.into(),
+            ColumnType::Timestamp => LogicalTypeId::Timestamp.into(),
             ColumnType::Varchar => LogicalTypeId::Varchar.into(),
             ColumnType::Geometry => LogicalTypeId::Blob.into(),
         }
