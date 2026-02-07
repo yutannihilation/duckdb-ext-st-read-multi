@@ -56,13 +56,6 @@ impl ShapefileDataSource {
             inferred_cpg_encoding: cpg_inferred.map(|v| v.name.to_string()),
         })
     }
-
-    pub(crate) fn get_column_specs<T: AsRef<str>>(
-        &self,
-        _table_name: T,
-    ) -> Result<Vec<ColumnSpec>, Box<dyn std::error::Error>> {
-        Ok(self.column_specs.clone())
-    }
 }
 
 fn open_dbf_reader(
@@ -70,12 +63,11 @@ fn open_dbf_reader(
     cpg_encoding: Option<::shapefile::dbase::encoding::EncodingRs>,
 ) -> Result<::shapefile::dbase::Reader<std::io::BufReader<std::fs::File>>, Box<dyn std::error::Error>>
 {
-    if let Some(encoding) = cpg_encoding {
-        Ok(::shapefile::dbase::Reader::from_path_with_encoding(
+    match cpg_encoding {
+        Some(encoding) => Ok(::shapefile::dbase::Reader::from_path_with_encoding(
             dbf_path, encoding,
-        )?)
-    } else {
-        Ok(::shapefile::dbase::Reader::from_path(dbf_path)?)
+        )?),
+        None => Ok(::shapefile::dbase::Reader::from_path(dbf_path)?),
     }
 }
 
@@ -86,12 +78,12 @@ impl From<::shapefile::dbase::FieldType> for ColumnType {
         match value {
             FieldType::Logical => Self::Boolean,
             FieldType::Integer => Self::Integer,
-            FieldType::Numeric
-            | FieldType::Float
-            | FieldType::Currency
-            | FieldType::Double
-            | FieldType::DateTime => Self::Double,
-            FieldType::Character | FieldType::Date | FieldType::Memo => Self::Varchar,
+            FieldType::Numeric | FieldType::Float | FieldType::Currency | FieldType::Double => {
+                Self::Double
+            }
+            FieldType::DateTime => Self::Double, // TODO
+            FieldType::Character | FieldType::Memo => Self::Varchar,
+            FieldType::Date => Self::Varchar, // TODO
         }
     }
 }
