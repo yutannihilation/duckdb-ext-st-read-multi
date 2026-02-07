@@ -40,4 +40,4 @@ home = "0.5.12"
 
 [patch.crates-io]
 shapefile = { git = "https://github.com/tmontaigu/shapefile-rs" }
-dbase = { git = "https://github.com/tmontaigu/dbase-rs" }
+dbase = { git = "https://github.com/yutannihilation/dbase-rs", branch = "fix/cp932-codepage" }

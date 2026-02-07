@@ -19,6 +19,7 @@ impl ShapefileDataSource {
     pub(crate) fn new<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
         let path = path.as_ref();
 
+        // TODO: currently, dbase ignores .cpg file. So, we need to parse it and pass the corresponding encoding to from_path_with_encoding() instead of from_path().
         let dbf_reader = ::shapefile::dbase::Reader::from_path(path.with_extension("dbf"))?;
         let mut column_specs: Vec<ColumnSpec> = dbf_reader
             .fields()
@@ -103,7 +104,8 @@ mod tests {
 
     #[test]
     fn test_get_column_specs_cp932() -> Result<(), Box<dyn std::error::Error>> {
-        let source = super::ShapefileDataSource::new("./test/data/shapefile_cp932/points.shp")?;
+        let source =
+            super::ShapefileDataSource::new("./test/data/shapefile_cp932_wo_cpg/points.shp")?;
         let specs = source.get_column_specs("points")?;
 
         assert_eq!(specs.len(), 2);
