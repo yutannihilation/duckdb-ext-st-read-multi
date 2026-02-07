@@ -19,13 +19,19 @@ pub struct ShapefileDataSource {
 }
 
 impl ShapefileDataSource {
-    pub(crate) fn new<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
+    pub(crate) fn new<P: AsRef<Path>>(
+        path: P,
+        user_encoding: Option<::shapefile::dbase::encoding::EncodingRs>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let path = path.as_ref();
         let dbf_path = path.with_extension("dbf");
         let cpg_path = path.with_extension("cpg");
 
         let cpg_inferred = infer_encoding_from_cpg(&cpg_path);
-        let dbf_reader = open_dbf_reader(&dbf_path, cpg_inferred.as_ref().map(|v| v.encoding))?;
+        let dbf_reader = open_dbf_reader(
+            &dbf_path,
+            user_encoding.or(cpg_inferred.as_ref().map(|v| v.encoding)),
+        )?;
 
         let mut column_specs: Vec<ColumnSpec> = dbf_reader
             .fields()

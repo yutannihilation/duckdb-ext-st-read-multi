@@ -6,19 +6,13 @@ pub(crate) struct InferredEncoding {
     pub(crate) name: &'static str,
 }
 
-// Currently, dbase-rs doesn't parse .cpg file, so let's do it ourselves...
-pub(crate) fn infer_encoding_from_cpg(cpg_path: &Path) -> Option<InferredEncoding> {
-    if !cpg_path.exists() {
-        return None;
-    }
-
-    let label = std::fs::read_to_string(cpg_path).ok()?;
+pub(crate) fn parse_encoding_label(label: &str) -> Option<InferredEncoding> {
     let upper = label
         .trim()
         .trim_start_matches('\u{feff}')
         .to_ascii_uppercase();
 
-    // I searched to the ends of the internet, but I couldn’t find the specification of the CPG file.
+    // I searched to the ends of the internet, but I couldn't find the specification of the CPG file.
     // The following list is just a best guess based on the search results on GitHub.
     let enc = match upper.as_str() {
         "UTF-8" | "65001" => ::shapefile::dbase::encoding_rs::UTF_8,
@@ -27,7 +21,7 @@ pub(crate) fn infer_encoding_from_cpg(cpg_path: &Path) -> Option<InferredEncodin
         "CP949" | "EUC-KR" => ::shapefile::dbase::encoding_rs::EUC_KR,
         "BIG5" | "BIG-5" => ::shapefile::dbase::encoding_rs::BIG5,
         // For consistency with https://github.com/tmontaigu/dbase-rs/blob/master/src/encoding/encoding_rs.rs
-        // I couldn't find almost no actual .cpg files on GitHub.
+        // I found almost no actual .cpg files on GitHub.
         "CP866" => ::shapefile::dbase::encoding_rs::IBM866,
         "CP874" => ::shapefile::dbase::encoding_rs::WINDOWS_874,
         "CP1255" => ::shapefile::dbase::encoding_rs::WINDOWS_1255,
@@ -43,4 +37,14 @@ pub(crate) fn infer_encoding_from_cpg(cpg_path: &Path) -> Option<InferredEncodin
         encoding: ::shapefile::dbase::encoding::EncodingRs::from(enc),
         name: enc.name(),
     })
+}
+
+// Currently, dbase-rs doesn't parse .cpg file, so let's do it ourselves...
+pub(crate) fn infer_encoding_from_cpg(cpg_path: &Path) -> Option<InferredEncoding> {
+    if !cpg_path.exists() {
+        return None;
+    }
+
+    let label = std::fs::read_to_string(cpg_path).ok()?;
+    parse_encoding_label(&label)
 }

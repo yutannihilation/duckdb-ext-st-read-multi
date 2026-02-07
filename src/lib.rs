@@ -25,7 +25,7 @@ use std::{
 use crate::{
     geojson::GeoJsonDataSource,
     gpkg::{gpkg_geometry_to_wkb, Gpkg, GpkgDataSource},
-    shapefile::ShapefileDataSource,
+    shapefile::{parse_encoding_label, ShapefileDataSource},
     types::{
         ColumnSpec, ColumnType, Cursor, GeoJsonBindData, GpkgBindData, ShapefileBindData,
         StReadMultiBindData, StReadMultiInitData,
@@ -50,6 +50,7 @@ impl VTab for StReadMultiVTab {
         let path_pattern = bind.get_parameter(0).to_string();
         let expanded_pattern = expand_tilde(&path_pattern);
         let paths: Vec<PathBuf> = glob(&expanded_pattern)?.collect::<Result<_, _>>()?;
+        let encoding_option = bind.get_named_parameter("encoding").map(|v| v.to_string());
 
         if paths.is_empty() {
             return Err(format!("'{path_pattern}' doesn't match to any file").into());
@@ -60,6 +61,10 @@ impl VTab for StReadMultiVTab {
         // ==================== //
 
         if paths.iter().all(is_geojson) {
+            if encoding_option.is_some() {
+                eprintln!("[WARN] Named parameter 'encoding' is ignored for GeoJSON input");
+            }
+
             let mut sources: Vec<GeoJsonDataSource> = Vec::new();
             let mut column_specs: Option<Vec<ColumnSpec>> = None;
 
@@ -99,6 +104,10 @@ impl VTab for StReadMultiVTab {
         // ==================== //
 
         if paths.iter().all(is_gpkg) {
+            if encoding_option.is_some() {
+                eprintln!("[WARN] Named parameter 'encoding' is ignored for GeoPackage input");
+            }
+
             // Check if user specified a layer parameter
             let layer_name = bind.get_named_parameter("layer").map(|v| v.to_string());
 
@@ -142,11 +151,19 @@ impl VTab for StReadMultiVTab {
         // ==================== //
 
         if paths.iter().all(is_shp) {
+            let specified_encoding = match encoding_option {
+                Some(label) => Some(parse_encoding_label(&label).ok_or_else(|| {
+                    format!("Unknown encoding label in 'encoding' option: {label}")
+                })?),
+                None => None,
+            };
+
             let mut sources: Vec<ShapefileDataSource> = Vec::new();
             let mut column_specs: Option<Vec<ColumnSpec>> = None;
 
             for path in paths {
-                let source = ShapefileDataSource::new(&path)?;
+                let source =
+                    ShapefileDataSource::new(&path, specified_encoding.map(|v| v.encoding))?;
                 let column_specs_local = source.column_specs.clone();
 
                 if let Some(existing_specs) = &column_specs {
@@ -475,7 +492,10 @@ impl VTab for StReadMultiVTab {
     }
 
     fn named_parameters() -> Option<Vec<(String, LogicalTypeHandle)>> {
-        Some(vec![("layer".into(), LogicalTypeId::Varchar.into())])
+        Some(vec![
+            ("layer".into(), LogicalTypeId::Varchar.into()),
+            ("encoding".into(), LogicalTypeId::Varchar.into()),
+        ])
     }
 }
 
