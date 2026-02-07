@@ -174,7 +174,7 @@ impl VTab for StReadMultiVTab {
             .into());
         }
 
-        Err("All file must have extension of either '.geojson', '.gpkg' or '.shp'".into())
+        Err("All files must have extension '.geojson', '.gpkg', or '.shp'".into())
     }
 
     fn init(_: &InitInfo) -> Result<Self::InitData, Box<dyn std::error::Error>> {

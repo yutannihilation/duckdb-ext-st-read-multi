@@ -95,6 +95,7 @@ fn shape_to_wkb(shape: ::shapefile::Shape) -> Result<Option<Vec<u8>>, Box<dyn st
 
     let geometry: geo_types::Geometry<f64> = shape.try_into()?;
     let mut buffer = Vec::new();
-    wkb::writer::write_geometry(&mut buffer, &geometry, &Default::default()).unwrap();
+    wkb::writer::write_geometry(&mut buffer, &geometry, &Default::default())
+        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })?;
     Ok(Some(buffer))
 }
