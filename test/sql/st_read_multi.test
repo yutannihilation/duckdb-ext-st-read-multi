@@ -5,7 +5,6 @@
 # Require statement will ensure the extension is loaded from now on
 require st_read_multi
 
-# TODO: I can't
 statement ok
 INSTALL spatial;
 
@@ -66,5 +65,10 @@ SELECT count(1) FROM ST_Read_Multi('test/data/many_rows/points_*.geojson');
 
 query I
 SELECT count(1) FROM ST_Read_Multi('test/data/many_rows/points_*.gpkg');
+----
+4097
+
+query I
+SELECT count(1) FROM ST_Read_Multi('test/data/many_rows/points_*.shp');
 ----
 4097
