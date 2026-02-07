@@ -519,7 +519,7 @@ dependencies = [
 [[package]]
 name = "dbase"
 version = "0.6.1"
-source = "git+https://github.com/yutannihilation/dbase-rs?branch=fix%2Fcp932-codepage#469f4bb6d983b479d4038a8624225a32617b1b6e"
+source = "git+https://github.com/yutannihilation/dbase-rs?branch=fix%2Fcp932-codepage#30a89492c7fc2f388a7b7e9e30e8781b8f530b63"
 dependencies = [
  "bufrw",
  "byteorder",
