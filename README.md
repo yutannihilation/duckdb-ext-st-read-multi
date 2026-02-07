@@ -103,10 +103,10 @@ FROM ST_Read_Multi('test/data/shapefile_utf8/*.shp');
 │    geometry     │ 属性1  │  属性2  │              .filename               │
 │    geometry     │ double │ varchar │               varchar                │
 ├─────────────────┼────────┼─────────┼──────────────────────────────────────┤
-│ POINT (1 2)     │    1.0 │ 値a     │ test\data\shapefile_utf8\points.shp  │
-│ POINT (10 20)   │    1.0 │ 値b     │ test\data\shapefile_utf8\points.shp  │
-│ POINT (100 200) │    5.0 │ 値c     │ test\data\shapefile_utf8\points2.shp │
-│ POINT (111 222) │    6.0 │ 値d     │ test\data\shapefile_utf8\points2.shp │
+│ POINT (1 2)     │    1.0 │ 値a     │ test/data/shapefile_utf8/points.shp  │
+│ POINT (10 20)   │    1.0 │ 値b     │ test/data/shapefile_utf8/points.shp  │
+│ POINT (100 200) │    5.0 │ 値c     │ test/data/shapefile_utf8/points2.shp │
+│ POINT (111 222) │    6.0 │ 値d     │ test/data/shapefile_utf8/points2.shp │
 └─────────────────┴────────┴─────────┴──────────────────────────────────────┘
 ```
 
