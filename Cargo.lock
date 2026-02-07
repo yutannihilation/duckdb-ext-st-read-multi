@@ -2206,7 +2206,6 @@ dependencies = [
 name = "st_read_multi"
 version = "0.0.3"
 dependencies = [
- "dbase",
  "duckdb",
  "duckdb-loadable-macros",
  "geo-types",
