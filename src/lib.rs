@@ -15,6 +15,7 @@ use duckdb::{
 };
 use duckdb_loadable_macros::duckdb_entrypoint_c_api;
 use geojson::WkbConverter;
+use libduckdb_sys::{duckdb_date, duckdb_timestamp};
 use glob::glob;
 use std::{
     error::Error,
@@ -364,6 +365,7 @@ impl VTab for StReadMultiVTab {
                                             None => property_vectors[col_idx].set_null(row_idx),
                                         }
                                     }
+                                    ColumnType::Date | ColumnType::Timestamp => unreachable!(),
                                 }
                             }
 
@@ -440,9 +442,6 @@ impl VTab for StReadMultiVTab {
                             (ColumnType::Varchar, Some(FieldValue::Memo(v))) => {
                                 property_vectors[prop_idx].insert(row_idx, v.as_str());
                             }
-                            (ColumnType::Varchar, Some(FieldValue::Date(Some(v)))) => {
-                                property_vectors[prop_idx].insert(row_idx, v.to_string().as_str());
-                            }
                             (ColumnType::Boolean, Some(FieldValue::Logical(Some(v)))) => {
                                 property_vectors[prop_idx].as_mut_slice()[row_idx] = *v;
                             }
@@ -459,9 +458,17 @@ impl VTab for StReadMultiVTab {
                             | (ColumnType::Double, Some(FieldValue::Double(v))) => {
                                 property_vectors[prop_idx].as_mut_slice()[row_idx] = *v;
                             }
-                            (ColumnType::Double, Some(FieldValue::DateTime(v))) => {
-                                property_vectors[prop_idx].as_mut_slice()[row_idx] =
-                                    v.to_unix_timestamp() as f64;
+                            (ColumnType::Date, Some(FieldValue::Date(Some(v)))) => {
+                                property_vectors[prop_idx].as_mut_slice::<duckdb_date>()[row_idx] =
+                                    duckdb_date {
+                                        days: v.to_unix_days(),
+                                    };
+                            }
+                            (ColumnType::Timestamp, Some(FieldValue::DateTime(v))) => {
+                                property_vectors[prop_idx].as_mut_slice::<duckdb_timestamp>()
+                                    [row_idx] = duckdb_timestamp {
+                                    micros: v.to_unix_timestamp() * 1_000_000,
+                                };
                             }
                             _ => {
                                 property_vectors[prop_idx].set_null(row_idx);
