@@ -6,6 +6,7 @@ pub(crate) struct InferredEncoding {
     pub(crate) name: &'static str,
 }
 
+// Currently, dbase-rs doesn't parse .cpg file, so let's do it ourselves...
 pub(crate) fn infer_encoding_from_cpg(cpg_path: &Path) -> Option<InferredEncoding> {
     if !cpg_path.exists() {
         return None;
@@ -16,6 +17,9 @@ pub(crate) fn infer_encoding_from_cpg(cpg_path: &Path) -> Option<InferredEncodin
         .trim()
         .trim_start_matches('\u{feff}')
         .to_ascii_uppercase();
+
+    // I searched to the ends of the internet, but I couldn’t find the specification of the CPG file.
+    // The following list is just a best guess based on the search results on GitHub.
     let enc = match upper.as_str() {
         "UTF-8" | "65001" => ::shapefile::dbase::encoding_rs::UTF_8,
         "CP932" | "SHIFT_JIS" | "SJIS" => ::shapefile::dbase::encoding_rs::SHIFT_JIS,
