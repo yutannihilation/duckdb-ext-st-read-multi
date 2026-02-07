@@ -103,4 +103,5 @@ Notes:
 - Input should be specified as `*.shp` (not `*.dbf`).
 - Attribute encoding is read from DBF LDID when available.
 - If LDID is missing, this extension also tries to infer encoding from a sidecar `.cpg` file.
+- You can explicitly specify an encoding label with `encoding='...'` (parsed with the same label set as `.cpg`).
 - Compared to `duckdb-spatial`'s current `ST_Read` behavior, this is useful when you need to read non-UTF-8 Shapefiles (e.g. CP932/Shift_JIS DBF attributes).

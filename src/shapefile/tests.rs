@@ -15,7 +15,7 @@ fn row_character(
 
 #[test]
 fn test_get_column_specs() -> Result<(), Box<dyn std::error::Error>> {
-    let source = super::ShapefileDataSource::new("./test/data/shapefile_utf8/points.shp")?;
+    let source = super::ShapefileDataSource::new("./test/data/shapefile_utf8/points.shp", None)?;
     let specs = &source.column_specs;
 
     assert_eq!(specs.len(), 2);
@@ -31,7 +31,8 @@ fn test_get_column_specs() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_get_column_specs_cp932() -> Result<(), Box<dyn std::error::Error>> {
-    let source = super::ShapefileDataSource::new("./test/data/shapefile_cp932_wo_cpg/points.shp")?;
+    let source =
+        super::ShapefileDataSource::new("./test/data/shapefile_cp932_wo_cpg/points.shp", None)?;
     let specs = &source.column_specs;
 
     assert_eq!(specs.len(), 2);
@@ -47,7 +48,8 @@ fn test_get_column_specs_cp932() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_get_column_specs_cp932_with_cpg() -> Result<(), Box<dyn std::error::Error>> {
-    let source = super::ShapefileDataSource::new("./test/data/shapefile_cp932_w_cpg/points.shp")?;
+    let source =
+        super::ShapefileDataSource::new("./test/data/shapefile_cp932_w_cpg/points.shp", None)?;
     let specs = &source.column_specs;
 
     assert_eq!(source.inferred_cpg_encoding.as_deref(), Some("Shift_JIS"));

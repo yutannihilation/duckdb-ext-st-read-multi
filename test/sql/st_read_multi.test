@@ -20,6 +20,15 @@ POINT (10 20)	 2.0	b
 POINT (100 200)	5.0	c
 POINT (111 222)	6.0	d
 
+# encoding option is ignored for GeoJSON
+query III
+SELECT ST_GeomFromWkb(geometry), val1, val2 FROM ST_Read_Multi('test/data/points*.geojson', encoding='UTF-8');
+----
+POINT (1 2)	 1.0	a
+POINT (10 20)	 2.0	b
+POINT (100 200)	5.0	c
+POINT (111 222)	6.0	d
+
 # different_schema
 statement error
 SELECT ST_GeomFromWkb(geometry), val1, val2 FROM ST_Read_Multi('test/data/different_schema/*.geojson');
@@ -29,6 +38,15 @@ Binder Error: Schema mismatch in test/data/different_schema/points2.geojson: col
 # multiple Gpkg files
 query III
 SELECT ST_GeomFromWkb(geom), val1, val2 FROM ST_Read_Multi('test/data/points*.gpkg');
+----
+POINT (1 2)	 1.0	a
+POINT (10 20)	 2.0	b
+POINT (100 200)	5.0	c
+POINT (111 222)	6.0	d
+
+# encoding option is ignored for GeoPackage
+query III
+SELECT ST_GeomFromWkb(geom), val1, val2 FROM ST_Read_Multi('test/data/points*.gpkg', encoding='UTF-8');
 ----
 POINT (1 2)	 1.0	a
 POINT (10 20)	 2.0	b
@@ -72,3 +90,14 @@ query I
 SELECT count(1) FROM ST_Read_Multi('test/data/many_rows/points_*.shp');
 ----
 4097
+
+# encoding option is parsed the same way as .cpg labels
+query I
+SELECT count(1) FROM ST_Read_Multi('test/data/many_rows/points_*.shp', encoding='65001');
+----
+4097
+
+statement error
+SELECT count(1) FROM ST_Read_Multi('test/data/many_rows/points_*.shp', encoding='NO_SUCH_ENCODING');
+----
+Binder Error: Unknown encoding label in 'encoding' option: NO_SUCH_ENCODING
