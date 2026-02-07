@@ -11,28 +11,24 @@ pub(crate) fn infer_encoding_from_cpg(cpg_path: &Path) -> Option<InferredEncodin
         return None;
     }
 
-    let raw = std::fs::read_to_string(cpg_path).ok()?;
-    let label = raw.trim().trim_start_matches('\u{feff}');
-    if label.is_empty() {
-        return None;
-    }
-
-    if let Some(enc) = ::shapefile::dbase::encoding_rs::Encoding::for_label(label.as_bytes()) {
-        return Some(InferredEncoding {
-            encoding: ::shapefile::dbase::encoding::EncodingRs::from(enc),
-            name: enc.name(),
-        });
-    }
-
+    let label = std::fs::read_to_string(cpg_path).ok()?;
     let upper = label.to_ascii_uppercase();
     let enc = match upper.as_str() {
-        "65001" | "UTF8" | "UTF-8" => ::shapefile::dbase::encoding_rs::UTF_8,
-        "932" | "CP932" | "MS932" | "SHIFT_JIS" | "SHIFT-JIS" | "SJIS" | "WINDOWS-31J" => {
-            ::shapefile::dbase::encoding_rs::SHIFT_JIS
-        }
-        "936" | "CP936" | "GBK" => ::shapefile::dbase::encoding_rs::GBK,
-        "949" | "CP949" => ::shapefile::dbase::encoding_rs::EUC_KR,
-        "950" | "CP950" | "BIG5" => ::shapefile::dbase::encoding_rs::BIG5,
+        "UTF-8" | "65001" => ::shapefile::dbase::encoding_rs::UTF_8,
+        "CP932" | "SHIFT_JIS" | "SJIS" => ::shapefile::dbase::encoding_rs::SHIFT_JIS,
+        "CP936" | "GBK" => ::shapefile::dbase::encoding_rs::GBK,
+        "CP949" | "EUC-KR" => ::shapefile::dbase::encoding_rs::EUC_KR,
+        "BIG5" | "BIG-5" => ::shapefile::dbase::encoding_rs::BIG5,
+        // For consistency with https://github.com/tmontaigu/dbase-rs/blob/master/src/encoding/encoding_rs.rs
+        // I couldn't find almost no actual .cpg files on GitHub.
+        "CP866" => ::shapefile::dbase::encoding_rs::IBM866,
+        "CP874" => ::shapefile::dbase::encoding_rs::WINDOWS_874,
+        "CP1255" => ::shapefile::dbase::encoding_rs::WINDOWS_1255,
+        "CP1256" => ::shapefile::dbase::encoding_rs::WINDOWS_1256,
+        "CP1250" => ::shapefile::dbase::encoding_rs::WINDOWS_1250,
+        "CP1251" => ::shapefile::dbase::encoding_rs::WINDOWS_1251,
+        "CP1254" => ::shapefile::dbase::encoding_rs::WINDOWS_1254,
+        "CP1253" => ::shapefile::dbase::encoding_rs::WINDOWS_1253,
         _ => return None,
     };
 
