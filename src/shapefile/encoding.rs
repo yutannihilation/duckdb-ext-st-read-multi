@@ -12,36 +12,6 @@ pub(crate) fn parse_encoding_label(label: &str) -> Option<InferredEncoding> {
         .trim_start_matches('\u{feff}')
         .to_ascii_uppercase();
 
-    // It seems ISO-8859-* encodings are stored as 8859* or 8859-*
-    // - https://github.com/OSGeo/gdal/blob/12582d42366b101f75079dc832e34e4144cce62f/ogr/ogrsf_frmts/shape/ogrshapelayer.cpp#L517C38-L523
-    // - https://github.com/qgis/QGIS/blob/master/tests/testdata/shapefile/iso-8859-1.cpg
-    if let Some(no) = upper
-        .strip_prefix("8859-")
-        .or_else(|| upper.strip_prefix("8859"))
-    {
-        let enc = match no {
-            "1" => ::shapefile::dbase::encoding_rs::WINDOWS_1252,
-            "2" => ::shapefile::dbase::encoding_rs::ISO_8859_2,
-            "3" => ::shapefile::dbase::encoding_rs::ISO_8859_3,
-            "4" => ::shapefile::dbase::encoding_rs::ISO_8859_4,
-            "5" => ::shapefile::dbase::encoding_rs::ISO_8859_5,
-            "6" => ::shapefile::dbase::encoding_rs::ISO_8859_6,
-            "7" => ::shapefile::dbase::encoding_rs::ISO_8859_7,
-            "8" => ::shapefile::dbase::encoding_rs::ISO_8859_8,
-            "9" => ::shapefile::dbase::encoding_rs::WINDOWS_1254,
-            "10" => ::shapefile::dbase::encoding_rs::ISO_8859_10,
-            "13" => ::shapefile::dbase::encoding_rs::ISO_8859_13,
-            "14" => ::shapefile::dbase::encoding_rs::ISO_8859_14,
-            "15" => ::shapefile::dbase::encoding_rs::ISO_8859_15,
-            "16" => ::shapefile::dbase::encoding_rs::ISO_8859_16,
-            _ => return None,
-        };
-        return Some(InferredEncoding {
-            encoding: ::shapefile::dbase::encoding::EncodingRs::from(enc),
-            name: enc.name(),
-        });
-    }
-
     // I searched to the ends of the internet, but I couldn't find the specification of the CPG file.
     // The following list is just a best guess based on the search results on GitHub.
     let enc = match upper.as_str() {
@@ -58,10 +28,27 @@ pub(crate) fn parse_encoding_label(label: &str) -> Option<InferredEncoding> {
         "1255" | "CP1255" => ::shapefile::dbase::encoding_rs::WINDOWS_1255,
         "1256" | "CP1256" => ::shapefile::dbase::encoding_rs::WINDOWS_1256,
         "1250" | "CP1250" => ::shapefile::dbase::encoding_rs::WINDOWS_1250,
-        "1251" | "CP1251" => ::shapefile::dbase::encoding_rs::WINDOWS_1251,
+        "1251" | "CP1251" | "ANSI 1251" => ::shapefile::dbase::encoding_rs::WINDOWS_1251,
         "1252" | "CP1252" => ::shapefile::dbase::encoding_rs::WINDOWS_1252,
         "1254" | "CP1254" => ::shapefile::dbase::encoding_rs::WINDOWS_1254,
         "1253" | "CP1253" => ::shapefile::dbase::encoding_rs::WINDOWS_1253,
+        // It seems ISO-8859-* encodings can be stored as 8859* or 8859-*
+        // - https://github.com/OSGeo/gdal/blob/12582d42366b101f75079dc832e34e4144cce62f/ogr/ogrsf_frmts/shape/ogrshapelayer.cpp#L517C38-L523
+        // - https://github.com/qgis/QGIS/blob/master/tests/testdata/shapefile/iso-8859-1.cpg
+        "ISO-8859-1" | "8859-1" | "88591" => ::shapefile::dbase::encoding_rs::WINDOWS_1252,
+        "ISO-8859-2" | "8859-2" | "88592" => ::shapefile::dbase::encoding_rs::ISO_8859_2,
+        "ISO-8859-3" | "8859-3" | "88593" => ::shapefile::dbase::encoding_rs::ISO_8859_3,
+        "ISO-8859-4" | "8859-4" | "88594" => ::shapefile::dbase::encoding_rs::ISO_8859_4,
+        "ISO-8859-5" | "8859-5" | "88595" => ::shapefile::dbase::encoding_rs::ISO_8859_5,
+        "ISO-8859-6" | "8859-6" | "88596" => ::shapefile::dbase::encoding_rs::ISO_8859_6,
+        "ISO-8859-7" | "8859-7" | "88597" => ::shapefile::dbase::encoding_rs::ISO_8859_7,
+        "ISO-8859-8" | "8859-8" | "88598" => ::shapefile::dbase::encoding_rs::ISO_8859_8,
+        "ISO-8859-9" | "8859-9" | "88599" => ::shapefile::dbase::encoding_rs::WINDOWS_1254,
+        "ISO-8859-10" | "8859-10" | "885910" => ::shapefile::dbase::encoding_rs::ISO_8859_10,
+        "ISO-8859-13" | "8859-13" | "885913" => ::shapefile::dbase::encoding_rs::ISO_8859_13,
+        "ISO-8859-14" | "8859-14" | "885914" => ::shapefile::dbase::encoding_rs::ISO_8859_14,
+        "ISO-8859-15" | "8859-15" | "885915" => ::shapefile::dbase::encoding_rs::ISO_8859_15,
+        "ISO-8859-16" | "8859-16" | "885916" => ::shapefile::dbase::encoding_rs::ISO_8859_16,
         _ => return None,
     };
 
