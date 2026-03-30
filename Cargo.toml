@@ -11,9 +11,9 @@ lto = true
 strip = true
 
 [dependencies]
-duckdb = { version = "1.10500.0", features = ["vtab-loadable"] }
-duckdb-loadable-macros = "1.10500.0"
-libduckdb-sys = { version = "1.10500.0", features = ["loadable-extension"] }
+duckdb = { version = "1.10501.0", features = ["vtab-loadable"] }
+duckdb-loadable-macros = "1.10501.0"
+libduckdb-sys = { version = "1.10501.0", features = ["loadable-extension"] }
 
 # GIS data
 geo-types = "0.7.18"
