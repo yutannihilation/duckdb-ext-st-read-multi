@@ -11,9 +11,9 @@ lto = true
 strip = true
 
 [dependencies]
-duckdb = { version = "1.10500.0", features = ["vtab-loadable"] }
-duckdb-loadable-macros = "1.10500.0"
-libduckdb-sys = { version = "1.10500.0", features = ["loadable-extension"] }
+duckdb = { version = "1.10501.0", features = ["vtab-loadable"] }
+duckdb-loadable-macros = "1.10501.0"
+libduckdb-sys = { version = "1.10501.0", features = ["loadable-extension"] }
 
 # GIS data
 geo-types = "0.7.18"
@@ -39,4 +39,3 @@ home = "0.5.12"
 
 [patch.crates-io]
 shapefile = { git = "https://github.com/tmontaigu/shapefile-rs" }
-dbase = { git = "https://github.com/yutannihilation/dbase-rs", branch = "fix/cp932-codepage" }
