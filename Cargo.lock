@@ -2114,8 +2114,9 @@ dependencies = [
 
 [[package]]
 name = "shapefile"
-version = "0.7.0"
-source = "git+https://github.com/tmontaigu/shapefile-rs#037552727f3097cc99ceb730b43a7bbbca5b4267"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1843429773d609e4ee4b896899ab15530bc0509e128ed8312652c6b5c19ccd48"
 dependencies = [
  "byteorder",
  "dbase",

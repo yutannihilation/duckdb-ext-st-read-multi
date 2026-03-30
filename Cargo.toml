@@ -27,7 +27,7 @@ serde_json = "1.0.149"
 rusqlite = { version = "0.36", features = ["bundled"] }
 
 # Shapefile
-shapefile = { version = "0.7", features = [
+shapefile = { version = "0.8", features = [
     "encoding_rs",
     "geo-traits",
     "geo-types",
@@ -36,6 +36,3 @@ shapefile = { version = "0.7", features = [
 # file path
 glob = "0.3.2"
 home = "0.5.12"
-
-[patch.crates-io]
-shapefile = { git = "https://github.com/tmontaigu/shapefile-rs" }

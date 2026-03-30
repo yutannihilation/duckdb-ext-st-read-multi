@@ -15,23 +15,27 @@ pub struct ShapefileDataSource {
     pub rows: Vec<ShapefileRow>,
     pub filename: String,
     pub column_specs: Vec<ColumnSpec>,
-    pub inferred_cpg_encoding: Option<String>,
 }
 
 impl ShapefileDataSource {
     pub(crate) fn new<P: AsRef<Path>>(
         path: P,
-        user_encoding: Option<::shapefile::dbase::encoding::EncodingRs>,
+        user_encoding: Option<::shapefile::dbase::encoding::DynEncoding>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let path = path.as_ref();
         let dbf_path = path.with_extension("dbf");
-        let cpg_path = path.with_extension("cpg");
 
-        let cpg_inferred = infer_encoding_from_cpg(&cpg_path);
-        let dbf_reader = open_dbf_reader(
-            &dbf_path,
-            user_encoding.or(cpg_inferred.as_ref().map(|v| v.encoding)),
-        )?;
+        let encoding = user_encoding.or_else(|| {
+            let cpg_path = path.with_extension("cpg");
+            infer_encoding_from_cpg(&cpg_path)
+        });
+
+        let dbf_reader = match encoding {
+            Some(encoding) => {
+                ::shapefile::dbase::Reader::from_path_with_encoding(&dbf_path, encoding)?
+            }
+            None => ::shapefile::dbase::Reader::from_path(&dbf_path)?,
+        };
 
         let mut column_specs: Vec<ColumnSpec> = dbf_reader
             .fields()
@@ -59,21 +63,7 @@ impl ShapefileDataSource {
             rows,
             filename: path.to_string_lossy().into_owned(),
             column_specs,
-            inferred_cpg_encoding: cpg_inferred.map(|v| v.name.to_string()),
         })
-    }
-}
-
-fn open_dbf_reader(
-    dbf_path: &Path,
-    cpg_encoding: Option<::shapefile::dbase::encoding::EncodingRs>,
-) -> Result<::shapefile::dbase::Reader<std::io::BufReader<std::fs::File>>, Box<dyn std::error::Error>>
-{
-    match cpg_encoding {
-        Some(encoding) => Ok(::shapefile::dbase::Reader::from_path_with_encoding(
-            dbf_path, encoding,
-        )?),
-        None => Ok(::shapefile::dbase::Reader::from_path(dbf_path)?),
     }
 }
 

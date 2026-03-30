@@ -52,7 +52,6 @@ fn test_get_column_specs_cp932_with_cpg() -> Result<(), Box<dyn std::error::Erro
         super::ShapefileDataSource::new("./test/data/shapefile_cp932_w_cpg/points.shp", None)?;
     let specs = &source.column_specs;
 
-    assert_eq!(source.inferred_cpg_encoding.as_deref(), Some("Shift_JIS"));
     assert_eq!(specs.len(), 2);
     assert_eq!(specs[0].column_type, ColumnType::Double);
     assert_eq!(&specs[0].name, "属性1");

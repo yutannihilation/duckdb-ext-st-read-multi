@@ -26,7 +26,7 @@ use std::{
 use crate::{
     geojson::GeoJsonDataSource,
     gpkg::{gpkg_geometry_to_wkb, Gpkg, GpkgDataSource},
-    shapefile::{parse_encoding_label, ShapefileDataSource},
+    shapefile::ShapefileDataSource,
     types::{
         ColumnSpec, ColumnType, Cursor, GeoJsonBindData, GpkgBindData, ShapefileBindData,
         StReadMultiBindData, StReadMultiInitData,
@@ -153,9 +153,13 @@ impl VTab for StReadMultiVTab {
 
         if paths.iter().all(is_shp) {
             let specified_encoding = match encoding_option {
-                Some(label) => Some(parse_encoding_label(&label).ok_or_else(|| {
-                    format!("Unknown encoding label in 'encoding' option: {label}")
-                })?),
+                Some(label) => {
+                    Some(
+                        ::shapefile::dbase::encoding::DynEncoding::from_name(&label).ok_or_else(
+                            || format!("Unknown encoding label in 'encoding' option: {label}"),
+                        )?,
+                    )
+                }
                 None => None,
             };
 
@@ -164,7 +168,7 @@ impl VTab for StReadMultiVTab {
 
             for path in paths {
                 let source =
-                    ShapefileDataSource::new(&path, specified_encoding.map(|v| v.encoding))?;
+                    ShapefileDataSource::new(&path, specified_encoding.clone())?;
                 let column_specs_local = source.column_specs.clone();
 
                 if let Some(existing_specs) = &column_specs {
