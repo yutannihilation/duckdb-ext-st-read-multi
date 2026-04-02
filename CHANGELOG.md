@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <!-- next-header -->
 ## [Unreleased] (ReleaseDate)
 
+## [v0.0.5] (2026-04-02)
+
 - gpkg: Fix support on DATE and DATETIME (#49).
 - gpkg: Fix handling of tables whose PK is not `fid` (#50).
 - gpkg: Fix handling of BLOB columns (#51).
@@ -40,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-url -->
 [Unreleased]: https://github.com/yutannihilation/duckdb-ext-st-read-multi/compare/v0.0.5...HEAD
+[v0.0.5]: https://github.com/yutannihilation/duckdb-ext-st-read-multi/compare/v0.0.5...v0.0.5
 [v0.0.5]: https://github.com/yutannihilation/duckdb-ext-st-read-multi/compare/v0.0.4...v0.0.5
 [v0.0.4]: https://github.com/yutannihilation/duckdb-ext-st-read-multi/compare/v0.0.3...v0.0.4
 [v0.0.3]: https://github.com/yutannihilation/duckdb-ext-st-read-multi/compare/v0.0.2...v0.0.3
