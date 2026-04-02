@@ -15,8 +15,8 @@ use duckdb::{
 };
 use duckdb_loadable_macros::duckdb_entrypoint_c_api;
 use geojson::WkbConverter;
-use libduckdb_sys::{duckdb_date, duckdb_timestamp};
 use glob::glob;
+use libduckdb_sys::{duckdb_date, duckdb_timestamp};
 use std::{
     error::Error,
     path::PathBuf,
@@ -153,13 +153,11 @@ impl VTab for StReadMultiVTab {
 
         if paths.iter().all(is_shp) {
             let specified_encoding = match encoding_option {
-                Some(label) => {
-                    Some(
-                        ::shapefile::dbase::encoding::DynEncoding::from_name(&label).ok_or_else(
-                            || format!("Unknown encoding label in 'encoding' option: {label}"),
-                        )?,
-                    )
-                }
+                Some(label) => Some(
+                    ::shapefile::dbase::encoding::DynEncoding::from_name(&label).ok_or_else(
+                        || format!("Unknown encoding label in 'encoding' option: {label}"),
+                    )?,
+                ),
                 None => None,
             };
 
@@ -167,8 +165,7 @@ impl VTab for StReadMultiVTab {
             let mut column_specs: Option<Vec<ColumnSpec>> = None;
 
             for path in paths {
-                let source =
-                    ShapefileDataSource::new(&path, specified_encoding.clone())?;
+                let source = ShapefileDataSource::new(&path, specified_encoding.clone())?;
                 let column_specs_local = source.column_specs.clone();
 
                 if let Some(existing_specs) = &column_specs {

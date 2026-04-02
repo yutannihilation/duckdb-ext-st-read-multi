@@ -68,8 +68,5 @@ fn test_field_type_mapping_date_and_datetime() {
     use ::shapefile::dbase::FieldType;
 
     assert_eq!(ColumnType::from(FieldType::Date), ColumnType::Date);
-    assert_eq!(
-        ColumnType::from(FieldType::DateTime),
-        ColumnType::Timestamp
-    );
+    assert_eq!(ColumnType::from(FieldType::DateTime), ColumnType::Timestamp);
 }
