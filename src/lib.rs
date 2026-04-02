@@ -369,7 +369,34 @@ impl VTab for StReadMultiVTab {
                                             None => property_vectors[col_idx].set_null(row_idx),
                                         }
                                     }
-                                    ColumnType::Date | ColumnType::Timestamp => unreachable!(),
+                                    ColumnType::Date => {
+                                        let val: Option<String> = row.get(col_idx)?;
+                                        match val {
+                                            Some(v) => {
+                                                property_vectors[col_idx]
+                                                    .as_mut_slice::<duckdb_date>()[row_idx] =
+                                                    duckdb_date {
+                                                        days: gpkg::parse_date_to_unix_days(&v),
+                                                    };
+                                            }
+                                            None => property_vectors[col_idx].set_null(row_idx),
+                                        }
+                                    }
+                                    ColumnType::Timestamp => {
+                                        let val: Option<String> = row.get(col_idx)?;
+                                        match val {
+                                            Some(v) => {
+                                                property_vectors[col_idx]
+                                                    .as_mut_slice::<duckdb_timestamp>()[row_idx] =
+                                                    duckdb_timestamp {
+                                                        micros: gpkg::parse_datetime_to_unix_micros(
+                                                            &v,
+                                                        ),
+                                                    };
+                                            }
+                                            None => property_vectors[col_idx].set_null(row_idx),
+                                        }
+                                    }
                                 }
                             }
 

@@ -42,7 +42,7 @@ impl GpkgConnection {
 
         let mut stmt = self.conn.prepare_cached(sql)?;
         let result = stmt
-            .query_map([offset], |row| {
+            .query_map([offset as isize], |row| {
                 let result = f(row, row_idx);
                 row_idx += 1;
                 result
@@ -117,6 +117,9 @@ impl Gpkg {
                 "TEXT" => ColumnType::Varchar,
                 "BOOLEAN" => ColumnType::Boolean,
                 // cf. https://www.geopackage.org/spec140/index.html#geometry_types
+                "DATE" => ColumnType::Date,
+                "DATETIME" => ColumnType::Timestamp,
+                // cf. https://www.geopackage.org/spec140/index.html#geometry_types
                 "GEOMETRY" | "POINT" | "LINESTRING" | "POLYGON" | "MULTIPOINT"
                 | "MULTILINESTRING" | "MULTIPOLYGON" | "GEOMETRYCOLLECTION" => ColumnType::Geometry,
                 _ => {
@@ -165,6 +168,66 @@ impl Gpkg {
     }
 }
 
+/// Parse "YYYY-MM-DD" to days since Unix epoch (1970-01-01).
+pub(crate) fn parse_date_to_unix_days(s: &str) -> i32 {
+    let b = s.as_bytes();
+    let year = parse_digits(b, 0, 4) as i32;
+    let month = parse_digits(b, 5, 2) as u32;
+    let day = parse_digits(b, 8, 2) as u32;
+    days_from_civil(year, month, day)
+}
+
+/// Parse "YYYY-MM-DDTHH:MM:SS", "YYYY-MM-DDTHH:MM:SS.SSSZ", or "YYYY-MM-DD HH:MM:SS" variants
+/// to microseconds since Unix epoch.
+pub(crate) fn parse_datetime_to_unix_micros(s: &str) -> i64 {
+    let b = s.as_bytes();
+    let days = parse_date_to_unix_days(s) as i64;
+    // byte 10 is 'T' or ' '
+    let hour = parse_digits(b, 11, 2) as i64;
+    let min = parse_digits(b, 14, 2) as i64;
+    let sec = parse_digits(b, 17, 2) as i64;
+
+    let mut micros = 0i64;
+    // Optional fractional seconds: ".SSS"
+    if b.len() > 19 && b[19] == b'.' {
+        let frac_start = 20;
+        let frac_end = b[frac_start..]
+            .iter()
+            .position(|&c| !c.is_ascii_digit())
+            .map_or(b.len(), |p| frac_start + p);
+        let frac_len = frac_end - frac_start;
+        let frac_val = parse_digits(b, frac_start, frac_len) as i64;
+        // Scale to microseconds (6 digits)
+        micros = if frac_len <= 6 {
+            frac_val * 10i64.pow(6 - frac_len as u32)
+        } else {
+            frac_val / 10i64.pow(frac_len as u32 - 6)
+        };
+    }
+
+    days * 86_400_000_000 + hour * 3_600_000_000 + min * 60_000_000 + sec * 1_000_000 + micros
+}
+
+fn parse_digits(b: &[u8], offset: usize, len: usize) -> i64 {
+    let mut val = 0i64;
+    for &c in &b[offset..offset + len] {
+        val = val * 10 + (c - b'0') as i64;
+    }
+    val
+}
+
+/// Convert a civil date to days since Unix epoch.
+/// Algorithm from https://howardhinnant.github.io/date_algorithms.html
+fn days_from_civil(year: i32, month: u32, day: u32) -> i32 {
+    let y = if month <= 2 { year - 1 } else { year } as i32;
+    let era = if y >= 0 { y } else { y - 399 } / 400;
+    let yoe = (y - era * 400) as u32;
+    let m = month;
+    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    (era * 146097 + doe as i32 - 719468) as i32
+}
+
 // cf. https://www.geopackage.org/spec140/index.html#gpb_format
 pub(crate) fn gpkg_geometry_to_wkb(b: &[u8]) -> &[u8] {
     let flags = b[3];
@@ -199,5 +262,56 @@ mod tests {
         assert_eq!(layers[2].column_type, ColumnType::Varchar);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_get_column_specs_with_date() -> Result<(), Box<dyn std::error::Error>> {
+        let gpkg = super::Gpkg::new("./test/data/dates.gpkg", None)?;
+        let specs = gpkg.get_column_specs("dates")?;
+
+        assert_eq!(specs.len(), 4);
+        assert_eq!(&specs[0].name, "geom");
+        assert_eq!(specs[0].column_type, ColumnType::Geometry);
+        assert_eq!(&specs[1].name, "name");
+        assert_eq!(specs[1].column_type, ColumnType::Varchar);
+        assert_eq!(&specs[2].name, "event_date");
+        assert_eq!(specs[2].column_type, ColumnType::Date);
+        assert_eq!(&specs[3].name, "event_datetime");
+        assert_eq!(specs[3].column_type, ColumnType::Timestamp);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_date_to_unix_days() {
+        // 1970-01-01 = day 0
+        assert_eq!(super::parse_date_to_unix_days("1970-01-01"), 0);
+        // 1970-01-02 = day 1
+        assert_eq!(super::parse_date_to_unix_days("1970-01-02"), 1);
+        // 1969-12-31 = day -1
+        assert_eq!(super::parse_date_to_unix_days("1969-12-31"), -1);
+        // 2024-01-15 = 19737
+        assert_eq!(super::parse_date_to_unix_days("2024-01-15"), 19737);
+    }
+
+    #[test]
+    fn test_parse_datetime_to_unix_micros() {
+        // 1970-01-01T00:00:00Z = 0
+        assert_eq!(super::parse_datetime_to_unix_micros("1970-01-01T00:00:00Z"), 0);
+        // 1970-01-01T00:00:01Z = 1_000_000
+        assert_eq!(
+            super::parse_datetime_to_unix_micros("1970-01-01T00:00:01Z"),
+            1_000_000
+        );
+        // with milliseconds
+        assert_eq!(
+            super::parse_datetime_to_unix_micros("1970-01-01T00:00:00.500Z"),
+            500_000
+        );
+        // space separator (common in SQLite)
+        assert_eq!(
+            super::parse_datetime_to_unix_micros("2024-01-15 12:30:45Z"),
+            19737 * 86_400_000_000i64 + 12 * 3_600_000_000 + 30 * 60_000_000 + 45 * 1_000_000
+        );
     }
 }

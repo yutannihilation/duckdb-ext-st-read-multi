@@ -101,3 +101,11 @@ statement error
 SELECT count(1) FROM ST_Read_Multi('test/data/many_rows/points_*.shp', encoding='NO_SUCH_ENCODING');
 ----
 Binder Error: Unknown encoding label in 'encoding' option: NO_SUCH_ENCODING
+
+# GeoPackage with DATE and DATETIME columns
+query IIII
+SELECT ST_GeomFromWkb(geom), name, event_date, event_datetime FROM ST_Read_Multi('test/data/dates.gpkg');
+----
+POINT (0 0)	event1	2024-01-15	2024-01-15 10:30:00
+POINT (1 1)	event2	2024-06-30	2024-06-30 23:59:59.999
+POINT (2 2)	event3	NULL	NULL
