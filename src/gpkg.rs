@@ -134,6 +134,7 @@ impl Gpkg {
                 // cf. https://www.geopackage.org/spec140/index.html#geometry_types
                 "DATE" => ColumnType::Date,
                 "DATETIME" => ColumnType::Timestamp,
+                "BLOB" => ColumnType::Blob,
                 // cf. https://www.geopackage.org/spec140/index.html#geometry_types
                 "GEOMETRY" | "POINT" | "LINESTRING" | "POLYGON" | "MULTIPOINT"
                 | "MULTILINESTRING" | "MULTIPOLYGON" | "GEOMETRYCOLLECTION" => ColumnType::Geometry,

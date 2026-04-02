@@ -358,6 +358,15 @@ impl VTab for StReadMultiVTab {
                                             None => property_vectors[col_idx].set_null(row_idx),
                                         }
                                     }
+                                    ColumnType::Blob => {
+                                        let val: Option<Vec<u8>> = row.get(col_idx)?;
+                                        match val {
+                                            Some(v) => {
+                                                property_vectors[col_idx].insert(row_idx, &v)
+                                            }
+                                            None => property_vectors[col_idx].set_null(row_idx),
+                                        }
+                                    }
                                     ColumnType::Geometry => {
                                         let val: Option<Vec<u8>> = row.get(col_idx)?;
                                         match val {
