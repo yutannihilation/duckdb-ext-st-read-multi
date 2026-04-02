@@ -94,15 +94,30 @@ impl Gpkg {
         }
     }
 
+    /// Get the primary key column name for a table.
+    fn get_pk_column<T: AsRef<str>>(
+        conn: &Connection,
+        table_name: T,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let query = format!(
+            "SELECT name FROM pragma_table_info('{}') WHERE pk = 1",
+            table_name.as_ref()
+        );
+        let pk: String = conn.query_row(&query, [], |row| row.get(0))?;
+        Ok(pk)
+    }
+
     pub(crate) fn get_column_specs<T: AsRef<str>>(
         &self,
         table_name: T,
     ) -> Result<Vec<ColumnSpec>, Box<dyn std::error::Error>> {
         let conn = self.conn.lock().unwrap();
 
+        let pk_column = Self::get_pk_column(&conn.conn, table_name.as_ref())?;
         let query = format!(
-            "SELECT name, type FROM pragma_table_info('{}') WHERE name != 'fid'",
-            table_name.as_ref()
+            "SELECT name, type FROM pragma_table_info('{}') WHERE name != '{}'",
+            table_name.as_ref(),
+            pk_column
         );
         let mut stmt = conn.conn.prepare(&query)?;
 
@@ -146,14 +161,20 @@ impl Gpkg {
         for layer in &self.layers {
             let column_specs = self.get_column_specs(layer)?;
 
+            let pk_column = {
+                let conn = self.conn.lock().unwrap();
+                Self::get_pk_column(&conn.conn, layer)?
+            };
+
             let sql = format!(
-                r#"SELECT {} FROM "{}" ORDER BY fid LIMIT {VECTOR_SIZE} OFFSET ?"#,
+                r#"SELECT {} FROM "{}" ORDER BY "{}" LIMIT {VECTOR_SIZE} OFFSET ?"#,
                 column_specs
                     .iter()
                     .map(|s| format!(r#""{}""#, s.name))
                     .collect::<Vec<String>>()
                     .join(","),
                 layer,
+                pk_column,
             );
 
             sources.push(GpkgDataSource {
@@ -297,7 +318,10 @@ mod tests {
     #[test]
     fn test_parse_datetime_to_unix_micros() {
         // 1970-01-01T00:00:00Z = 0
-        assert_eq!(super::parse_datetime_to_unix_micros("1970-01-01T00:00:00Z"), 0);
+        assert_eq!(
+            super::parse_datetime_to_unix_micros("1970-01-01T00:00:00Z"),
+            0
+        );
         // 1970-01-01T00:00:01Z = 1_000_000
         assert_eq!(
             super::parse_datetime_to_unix_micros("1970-01-01T00:00:01Z"),
