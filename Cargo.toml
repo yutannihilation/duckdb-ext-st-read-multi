@@ -24,7 +24,7 @@ geojson = "0.24.2"
 serde_json = "1.0.149"
 
 # Gpkg
-rusqlite = { version = "0.36", features = ["bundled"] }
+rusqlite = { version = "0.39", features = ["bundled"] }
 
 # Shapefile
 shapefile = { version = "0.8", features = [
