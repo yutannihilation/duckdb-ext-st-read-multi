@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.5] - 2026-04-02
-
 - gpkg: Fix support on DATE and DATETIME (#49).
 - gpkg: Fix handling of tables whose PK is not `fid` (#50).
 - gpkg: Fix handling of BLOB columns (#51).
