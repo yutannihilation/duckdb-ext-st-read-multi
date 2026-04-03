@@ -331,7 +331,7 @@ mod tests {
         // points_blob_geom.gpkg has the geometry column declared as BLOB in the
         // SQLite schema, but registered in gpkg_geometry_columns.  The column
         // should still be classified as ColumnType::Geometry.
-        let gpkg = super::Gpkg::new("./test/data/points_blob_geom.gpkg", None)?;
+        let gpkg = super::Gpkg::new("./test/data/gpkg_blob_geom/points_blob_geom.gpkg", None)?;
         let specs = gpkg.get_column_specs("points")?;
 
         assert_eq!(specs.len(), 3);
@@ -349,7 +349,7 @@ mod tests {
     fn test_gpkg_geometry_to_wkb_strips_header_for_blob_geom() -> Result<(), Box<dyn std::error::Error>> {
         // Verify that gpkg_geometry_to_wkb correctly strips the GPKG binary header
         // so the returned bytes start with the WKB byte-order marker (0x00 or 0x01).
-        let gpkg = super::Gpkg::new("./test/data/points_blob_geom.gpkg", None)?;
+        let gpkg = super::Gpkg::new("./test/data/gpkg_blob_geom/points_blob_geom.gpkg", None)?;
         let conn = gpkg.conn.lock().unwrap();
         let mut stmt = conn.conn.prepare("SELECT geom FROM points LIMIT 1")?;
         let blob: Vec<u8> = stmt.query_row([], |row| row.get(0))?;
