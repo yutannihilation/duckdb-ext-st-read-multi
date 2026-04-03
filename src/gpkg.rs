@@ -114,6 +114,19 @@ impl Gpkg {
         let conn = self.conn.lock().unwrap();
 
         let pk_column = Self::get_pk_column(&conn.conn, table_name.as_ref())?;
+
+        // Query gpkg_geometry_columns to find geometry columns regardless of their
+        // declared SQLite type (some producers declare them as BLOB).
+        let geom_cols: std::collections::HashSet<String> = {
+            let mut stmt = conn
+                .conn
+                .prepare("SELECT column_name FROM gpkg_geometry_columns WHERE table_name = ?1")?;
+            let result = stmt
+                .query_map([table_name.as_ref()], |row| row.get(0))?
+                .collect::<Result<_, _>>()?;
+            result
+        };
+
         let query = format!(
             "SELECT name, type FROM pragma_table_info('{}') WHERE name != '{}'",
             table_name.as_ref(),
@@ -124,6 +137,15 @@ impl Gpkg {
         let column_specs = stmt.query_map([], |row| {
             let name: String = row.get(0)?;
             let column_type_str: String = row.get(1)?;
+
+            // Geometry columns registered in gpkg_geometry_columns take priority
+            // over the declared SQLite type (which may be BLOB).
+            if geom_cols.contains(&name) {
+                return Ok(ColumnSpec {
+                    name,
+                    column_type: ColumnType::Geometry,
+                });
+            }
 
             // cf. https://www.geopackage.org/spec140/index.html#_sqlite_container
             let column_type = match column_type_str.to_uppercase().as_str() {
@@ -300,6 +322,48 @@ mod tests {
         assert_eq!(specs[2].column_type, ColumnType::Date);
         assert_eq!(&specs[3].name, "event_datetime");
         assert_eq!(specs[3].column_type, ColumnType::Timestamp);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_column_specs_blob_geom() -> Result<(), Box<dyn std::error::Error>> {
+        // points_blob_geom.gpkg has the geometry column declared as BLOB in the
+        // SQLite schema, but registered in gpkg_geometry_columns.  The column
+        // should still be classified as ColumnType::Geometry.
+        let gpkg = super::Gpkg::new("./test/data/points_blob_geom.gpkg", None)?;
+        let specs = gpkg.get_column_specs("points")?;
+
+        assert_eq!(specs.len(), 3);
+        assert_eq!(&specs[0].name, "geom");
+        assert_eq!(specs[0].column_type, ColumnType::Geometry);
+        assert_eq!(&specs[1].name, "val1");
+        assert_eq!(specs[1].column_type, ColumnType::Integer);
+        assert_eq!(&specs[2].name, "val2");
+        assert_eq!(specs[2].column_type, ColumnType::Varchar);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_gpkg_geometry_to_wkb_strips_header_for_blob_geom() -> Result<(), Box<dyn std::error::Error>> {
+        // Verify that gpkg_geometry_to_wkb correctly strips the GPKG binary header
+        // so the returned bytes start with the WKB byte-order marker (0x00 or 0x01).
+        let gpkg = super::Gpkg::new("./test/data/points_blob_geom.gpkg", None)?;
+        let conn = gpkg.conn.lock().unwrap();
+        let mut stmt = conn.conn.prepare("SELECT geom FROM points LIMIT 1")?;
+        let blob: Vec<u8> = stmt.query_row([], |row| row.get(0))?;
+
+        // Sanity check: raw blob starts with the GPKG magic 'GP'
+        assert_eq!(&blob[..2], b"GP");
+
+        let wkb = super::gpkg_geometry_to_wkb(&blob);
+
+        // WKB must start with a valid byte-order marker
+        assert!(wkb[0] == 0x00 || wkb[0] == 0x01, "expected WKB byte-order marker");
+        // WKB type for Point (little-endian) = 1
+        let wkb_type = u32::from_le_bytes(wkb[1..5].try_into().unwrap());
+        assert_eq!(wkb_type, 1, "expected WKB type Point (1)");
 
         Ok(())
     }
