@@ -256,14 +256,14 @@ impl VTab for StReadMultiVTab {
                                             property_vectors[prop_idx]
                                                 .insert(row_idx, v.as_str().unwrap());
                                         }
-                                        ColumnType::Boolean => {
+                                        ColumnType::Boolean => unsafe {
                                             property_vectors[prop_idx].as_mut_slice()[row_idx] =
                                                 v.as_bool().unwrap();
-                                        }
-                                        ColumnType::Double => {
+                                        },
+                                        ColumnType::Double => unsafe {
                                             property_vectors[prop_idx].as_mut_slice()[row_idx] =
                                                 v.as_f64().unwrap();
-                                        }
+                                        },
                                         // JSON doesn't have integer type.
                                         _ => unreachable!(),
                                     }
@@ -323,20 +323,20 @@ impl VTab for StReadMultiVTab {
                                     ColumnType::Integer => {
                                         let val: Option<i64> = row.get(col_idx)?;
                                         match val {
-                                            Some(v) => {
+                                            Some(v) => unsafe {
                                                 property_vectors[col_idx].as_mut_slice()[row_idx] =
                                                     v as i32
-                                            }
+                                            },
                                             None => property_vectors[col_idx].set_null(row_idx),
                                         }
                                     }
                                     ColumnType::Double => {
                                         let val: Option<f64> = row.get(col_idx)?;
                                         match val {
-                                            Some(v) => {
+                                            Some(v) => unsafe {
                                                 property_vectors[col_idx].as_mut_slice()[row_idx] =
                                                     v
-                                            }
+                                            },
                                             None => property_vectors[col_idx].set_null(row_idx),
                                         }
                                     }
@@ -351,10 +351,10 @@ impl VTab for StReadMultiVTab {
                                     ColumnType::Boolean => {
                                         let val: Option<bool> = row.get(col_idx)?;
                                         match val {
-                                            Some(v) => {
+                                            Some(v) => unsafe {
                                                 property_vectors[col_idx].as_mut_slice()[row_idx] =
                                                     v
-                                            }
+                                            },
                                             None => property_vectors[col_idx].set_null(row_idx),
                                         }
                                     }
@@ -378,20 +378,20 @@ impl VTab for StReadMultiVTab {
                                     ColumnType::Date => {
                                         let val: Option<String> = row.get(col_idx)?;
                                         match val {
-                                            Some(v) => {
+                                            Some(v) => unsafe {
                                                 property_vectors[col_idx]
                                                     .as_mut_slice::<duckdb_date>()[row_idx] =
                                                     duckdb_date {
                                                         days: gpkg::parse_date_to_unix_days(&v),
                                                     };
-                                            }
+                                            },
                                             None => property_vectors[col_idx].set_null(row_idx),
                                         }
                                     }
                                     ColumnType::Timestamp => {
                                         let val: Option<String> = row.get(col_idx)?;
                                         match val {
-                                            Some(v) => {
+                                            Some(v) => unsafe {
                                                 property_vectors[col_idx]
                                                     .as_mut_slice::<duckdb_timestamp>()[row_idx] =
                                                     duckdb_timestamp {
@@ -399,7 +399,7 @@ impl VTab for StReadMultiVTab {
                                                             &v,
                                                         ),
                                                     };
-                                            }
+                                            },
                                             None => property_vectors[col_idx].set_null(row_idx),
                                         }
                                     }
@@ -479,34 +479,34 @@ impl VTab for StReadMultiVTab {
                             (ColumnType::Varchar, Some(FieldValue::Memo(v))) => {
                                 property_vectors[prop_idx].insert(row_idx, v.as_str());
                             }
-                            (ColumnType::Boolean, Some(FieldValue::Logical(Some(v)))) => {
+                            (ColumnType::Boolean, Some(FieldValue::Logical(Some(v)))) => unsafe {
                                 property_vectors[prop_idx].as_mut_slice()[row_idx] = *v;
-                            }
-                            (ColumnType::Integer, Some(FieldValue::Integer(v))) => {
+                            },
+                            (ColumnType::Integer, Some(FieldValue::Integer(v))) => unsafe {
                                 property_vectors[prop_idx].as_mut_slice()[row_idx] = *v;
-                            }
-                            (ColumnType::Double, Some(FieldValue::Numeric(Some(v)))) => {
+                            },
+                            (ColumnType::Double, Some(FieldValue::Numeric(Some(v)))) => unsafe {
                                 property_vectors[prop_idx].as_mut_slice()[row_idx] = *v;
-                            }
-                            (ColumnType::Double, Some(FieldValue::Float(Some(v)))) => {
+                            },
+                            (ColumnType::Double, Some(FieldValue::Float(Some(v)))) => unsafe {
                                 property_vectors[prop_idx].as_mut_slice()[row_idx] = *v as f64;
-                            }
+                            },
                             (ColumnType::Double, Some(FieldValue::Currency(v)))
-                            | (ColumnType::Double, Some(FieldValue::Double(v))) => {
+                            | (ColumnType::Double, Some(FieldValue::Double(v))) => unsafe {
                                 property_vectors[prop_idx].as_mut_slice()[row_idx] = *v;
-                            }
-                            (ColumnType::Date, Some(FieldValue::Date(Some(v)))) => {
+                            },
+                            (ColumnType::Date, Some(FieldValue::Date(Some(v)))) => unsafe {
                                 property_vectors[prop_idx].as_mut_slice::<duckdb_date>()[row_idx] =
                                     duckdb_date {
                                         days: v.to_unix_days(),
                                     };
-                            }
-                            (ColumnType::Timestamp, Some(FieldValue::DateTime(v))) => {
+                            },
+                            (ColumnType::Timestamp, Some(FieldValue::DateTime(v))) => unsafe {
                                 property_vectors[prop_idx].as_mut_slice::<duckdb_timestamp>()
                                     [row_idx] = duckdb_timestamp {
                                     micros: v.to_unix_timestamp() * 1_000_000,
                                 };
-                            }
+                            },
                             _ => {
                                 property_vectors[prop_idx].set_null(row_idx);
                             }
