@@ -9,7 +9,7 @@ EXTENSION_NAME=st_read_multi
 USE_UNSTABLE_C_API=1
 
 # Target DuckDB version
-TARGET_DUCKDB_VERSION=v1.5.3
+TARGET_DUCKDB_VERSION=v1.5.4
 
 all: configure debug
 
