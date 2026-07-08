@@ -27,7 +27,7 @@ serde_json = "1.0.149"
 rusqlite = { version = "0.40", features = ["bundled"] }
 
 # Shapefile
-shapefile = { version = "0.8", features = [
+shapefile = { version = "0.9", features = [
     "encoding_rs",
     "geo-traits",
     "geo-types",

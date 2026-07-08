@@ -31,9 +31,9 @@ impl ShapefileDataSource {
         });
 
         let dbf_reader = match encoding {
-            Some(encoding) => {
-                ::shapefile::dbase::Reader::from_path_with_encoding(&dbf_path, encoding)?
-            }
+            Some(encoding) => ::shapefile::dbase::ReaderBuilder::new()
+                .with_encoding(encoding)
+                .open(&dbf_path)?,
             None => ::shapefile::dbase::Reader::from_path(&dbf_path)?,
         };
 
