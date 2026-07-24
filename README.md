@@ -32,7 +32,6 @@ LOAD st_read_multi;
 ### GeoJSON
 
 ```sql
-SELECT * REPLACE (ST_GeomFromWkb(geometry) as geometry)
 FROM ST_Read_Multi('test/data/*.geojson');
 ```
 
@@ -52,7 +51,6 @@ FROM ST_Read_Multi('test/data/*.geojson');
 
 ```sql
 -- load all layers
-SELECT * REPLACE (ST_GeomFromWkb(geom) as geom)
 FROM ST_Read_Multi('test/data/*.gpkg');
 ```
 
@@ -74,7 +72,6 @@ FROM ST_Read_Multi('test/data/*.gpkg');
 
 ```sql
 -- load specific layers
-SELECT * REPLACE (ST_GeomFromWkb(geom) as geom)
 FROM ST_Read_Multi('test/data/*.gpkg', layer='points');
 ```
 
@@ -94,7 +91,6 @@ FROM ST_Read_Multi('test/data/*.gpkg', layer='points');
 ### Shapefile
 
 ```sql
-SELECT * REPLACE (ST_GeomFromWkb(geometry) as geometry)
 FROM ST_Read_Multi('test/data/shapefile_utf8/*.shp');
 ```
 
