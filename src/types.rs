@@ -30,7 +30,7 @@ impl From<ColumnType> for LogicalTypeHandle {
             ColumnType::Timestamp => LogicalTypeId::Timestamp.into(),
             ColumnType::Varchar => LogicalTypeId::Varchar.into(),
             ColumnType::Blob => LogicalTypeId::Blob.into(),
-            ColumnType::Geometry => LogicalTypeId::Blob.into(),
+            ColumnType::Geometry => LogicalTypeId::Geometry.into(),
         }
     }
 }

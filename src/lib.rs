@@ -85,7 +85,7 @@ impl VTab for StReadMultiVTab {
 
             let column_specs = column_specs.unwrap();
 
-            bind.add_result_column("geometry", LogicalTypeId::Blob.into());
+            bind.add_result_column("geometry", LogicalTypeId::Geometry.into());
             for spec in column_specs.iter() {
                 bind.add_result_column(&spec.name, spec.column_type.into());
             }
@@ -179,7 +179,7 @@ impl VTab for StReadMultiVTab {
 
             let column_specs = column_specs.unwrap();
 
-            bind.add_result_column("geometry", LogicalTypeId::Blob.into());
+            bind.add_result_column("geometry", LogicalTypeId::Geometry.into());
             for spec in column_specs.iter() {
                 bind.add_result_column(&spec.name, spec.column_type.into());
             }
