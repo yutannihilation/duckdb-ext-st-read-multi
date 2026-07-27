@@ -20,7 +20,7 @@ geo-types = "0.7.19"
 wkb = "0.9.2"
 
 # GeoJSON
-geojson = "0.24.2"
+geojson = "1.0.0"
 serde_json = "1.0.149"
 
 # Gpkg
