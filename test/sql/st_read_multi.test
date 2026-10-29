@@ -33,7 +33,7 @@ POINT (111 222)	6.0	d
 statement error
 SELECT geometry, val1, val2 FROM ST_Read_Multi('test/data/different_schema/*.geojson');
 ----
-Binder Error: Schema mismatch in test/data/different_schema/points2.geojson: column 1 has name 'val3', expected 'val2'
+Invalid Input Error: Schema mismatch in test/data/different_schema/points2.geojson: column 1 has name 'val3', expected 'val2'
 
 # multiple Gpkg files
 query III
@@ -74,7 +74,7 @@ POINT (111 222)	6.0	d	points2.gpkg
 statement error
 FROM ST_Read_Multi('test/data/*.gpkg', layer='no such layer');
 ----
-Binder Error: No layers are found
+Invalid Input Error: No layers are found
 
 query I
 SELECT count(1) FROM ST_Read_Multi('test/data/many_rows/points_*.geojson');
@@ -100,7 +100,7 @@ SELECT count(1) FROM ST_Read_Multi('test/data/many_rows/points_*.shp', encoding=
 statement error
 SELECT count(1) FROM ST_Read_Multi('test/data/many_rows/points_*.shp', encoding='NO_SUCH_ENCODING');
 ----
-Binder Error: Unknown encoding label in 'encoding' option: NO_SUCH_ENCODING
+Invalid Input Error: Unknown encoding label in 'encoding' option: NO_SUCH_ENCODING
 
 # GeoPackage with DATE and DATETIME columns
 query IIII
