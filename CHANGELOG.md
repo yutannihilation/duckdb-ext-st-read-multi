@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <!-- next-header -->
 ## [Unreleased] (ReleaseDate)
 
+### Changed
+- Migrate to `duckdb-neo` (DuckDB C API v2) and target DuckDB v2.0.0.
+
 ## [v0.0.5] (2026-04-02)
 
 - gpkg: Fix support on DATE and DATETIME (#49).

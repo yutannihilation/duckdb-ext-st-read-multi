@@ -1,5 +1,5 @@
-use crate::types::{ColumnSpec, ColumnType};
 use crate::VECTOR_SIZE;
+use crate::types::{ColumnSpec, ColumnType};
 
 use rusqlite::{Connection, OpenFlags, Result, Row};
 use std::{
@@ -165,7 +165,7 @@ impl Gpkg {
                         1,
                         format!("Unexpected type {}", column_type_str),
                         rusqlite::types::Type::Text,
-                    ))
+                    ));
                 }
             };
 
@@ -346,7 +346,8 @@ mod tests {
     }
 
     #[test]
-    fn test_gpkg_geometry_to_wkb_strips_header_for_blob_geom() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_gpkg_geometry_to_wkb_strips_header_for_blob_geom()
+    -> Result<(), Box<dyn std::error::Error>> {
         // Verify that gpkg_geometry_to_wkb correctly strips the GPKG binary header
         // so the returned bytes start with the WKB byte-order marker (0x00 or 0x01).
         let gpkg = super::Gpkg::new("./test/data/gpkg_blob_geom/points_blob_geom.gpkg", None)?;
@@ -360,7 +361,10 @@ mod tests {
         let wkb = super::gpkg_geometry_to_wkb(&blob);
 
         // WKB must start with a valid byte-order marker
-        assert!(wkb[0] == 0x00 || wkb[0] == 0x01, "expected WKB byte-order marker");
+        assert!(
+            wkb[0] == 0x00 || wkb[0] == 0x01,
+            "expected WKB byte-order marker"
+        );
         // WKB type for Point (little-endian) = 1
         let wkb_type = u32::from_le_bytes(wkb[1..5].try_into().unwrap());
         assert_eq!(wkb_type, 1, "expected WKB type Point (1)");
